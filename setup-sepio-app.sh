@@ -122,17 +122,23 @@ show_header() {
     echo "====================================" | lolcat
 }
 
-grant_mysql_privileges() {
-    log "Granting MySQL privileges for Main_user on nodejs_login database..."
-    sudo mysql -u root <<MYSQL_SCRIPT
-    GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';
-    FLUSH PRIVILEGES;
-MYSQL_SCRIPT
+mysql -u root -p${MYSQL_ROOT_PASSWORD} -e "GRANT ALL PRIVILEGES ON database_name.* TO 'username'@'localhost' IDENTIFIED BY 'password';"
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to grant MySQL privileges."
+    exit 1
+fi
+
+
+build_frontend() {
+    local frontend_dir=$1
+    log "Building frontend in $frontend_dir..."
+    cd "$frontend_dir" || { log "Error: Directory $frontend_dir not found."; exit 1; }
+    npm run build
     if [ $? -ne 0 ]; then
-        log "Error: Failed to grant MySQL privileges."
+        log "Error: Failed to build frontend."
         exit 1
     fi
-    log "MySQL privileges granted successfully."
+    log "Frontend built successfully."
 }
 
 # Main script execution starts here
@@ -187,6 +193,89 @@ log "Prisma Client generated successfully."
 log "Granting MySQL privileges..."
 grant_mysql_privileges
 
+log "Creating systemd service for React build..."
+sudo bash -c "cat <<EOL > /etc/systemd/system/react-build.service
+[Unit]
+Description=React Build Service
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'cd $SEPIO_APP_DIR/front-end && npm run build'
+User=$USER
+Environment=PATH=$PATH:/usr/local/bin
+Environment=NODE_ENV=production
+WorkingDirectory=$SEPIO_APP_DIR/front-end
+
+[Install]
+WantedBy=multi-user.target
+EOL"
+if [ $? -ne 0 ]; then
+    log "Error: Failed to create react-build.service."
+    exit 1
+fi
+
+log "Creating systemd service for server.js..."
+sudo bash -c "cat <<EOL > /etc/systemd/system/node-server.service
+[Unit]
+Description=Node.js Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -c 'cd $SEPIO_APP_DIR/backend && node server.js'
+User=$USER
+Environment=PATH=$PATH:/usr/local/bin
+Environment=NODE_ENV=production
+WorkingDirectory=$SEPIO_APP_DIR/backend
+
+[Install]
+WantedBy=multi-user.target
+EOL"
+if [ $? -ne 0 ]; then
+    log "Error: Failed to create node-server.service."
+    exit 1
+fi
+
+log "Reloading systemd daemon to pick up the new service files..."
+sudo systemctl daemon-reload
+if [ $? -ne 0 ]; then
+    log "Error: Failed to reload systemd daemon."
+    exit 1
+fi
+
+log "Enabling react-build.service to start on boot..."
+sudo systemctl enable react-build.service
+if [ $? -ne 0 ]; then
+    log "Error: Failed to enable react-build.service."
+    exit 1
+fi
+
+log "Starting react-build.service... Please be patient, don't break up the process..."
+sudo systemctl start react-build.service
+if [ $? -ne 0 ]; then
+    log "Error: Failed to start react-build.service."
+    exit 1
+fi
+
+log "Enabling node-server.service to start on boot..."
+sudo systemctl enable node-server.service
+if [ $? -ne 0 ]; then
+    log "Error: Failed to enable node-server.service."
+    exit 1
+fi
+
+log "Starting node-server.service..."
+sudo systemctl start node-server.service
+if [ $? -ne 0 ]; then
+    log "Error: Failed to start node-server.service."
+    exit 1
+fi
+
+log "Systemd services setup completed successfully."
+
+
+
 log "Granting privilages for Updater and scheduling autoupdates..."
 schedule_updater
 cd "$SCRIPT_DIR" || { log "Error: Directory $SCRIPT_DIR not found."; exit 1; }
@@ -196,4 +285,5 @@ sudo chown "$USER:$USER" /var/log/sepio_updater.log
 
 # Additional setup steps for MySQL, Redis, etc., continue...
 
+check_port_availability 3000
 log "Setup script executed successfully."

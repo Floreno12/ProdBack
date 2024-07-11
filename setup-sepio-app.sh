@@ -1,7 +1,7 @@
 #!/bin/bash
 
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | lolcat
 }
 
 install_packages() {
@@ -44,6 +44,36 @@ install_npm() {
     fi
 }
 
+schedule_updater() {
+    local script_path=$(realpath "$SCRIPT_DIR/Sepio_Updater.sh")
+    local cron_job="0 3 * * * $script_path >> /var/log/sepio_updater.log 2>&1"
+    (crontab -l 2>/dev/null; echo "$cron_job") | crontab -
+    log "Scheduled Sepio_Updater.sh to run daily at 3:00 AM."
+}
+
+get_required_node_version() {
+    local package_json_path=$1
+    local required_node_version=$(jq -r '.engines.node // "16"' "$package_json_path")
+    echo "$required_node_version"
+}
+
+install_node_version() {
+    local node_version=$1
+    if ! command -v nvm &> /dev/null; then
+        log "nvm (Node Version Manager) is not installed. Installing nvm..."
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    fi
+    nvm install "$node_version"
+    if [ $? -ne 0 ]; then
+        log "Error: Failed to install Node.js version $node_version using nvm."
+        exit 1
+    fi
+    nvm use "$node_version"
+    log "Using Node.js version $node_version."
+}
+
 install_frontend_dependencies() {
     local frontend_dir=$1
     log "Installing frontend dependencies in $frontend_dir..."
@@ -64,17 +94,6 @@ install_backend_dependencies() {
         log "Error: Failed to install backend dependencies."
         exit 1
     fi
-}
-
-setup_prisma_migration() {
-    log "Initializing Prisma migrations..."
-    cd "$SEPIO_APP_DIR/backend" || { log "Error: Directory $SEPIO_APP_DIR/backend not found."; exit 1; }
-    npx prisma migrate dev --name init --preview-feature
-    if [ $? -ne 0 ]; then
-        log "Error: Failed to run Prisma migrations."
-        exit 1
-    fi
-    log "Prisma migrations completed successfully."
 }
 
 check_port_availability() {
@@ -98,9 +117,22 @@ check_port_availability() {
 }
 
 show_header() {
-    echo "===================================="
-    echo "Sepio Installer"
-    echo "===================================="
+    echo "====================================" | lolcat
+    figlet -c Sepio Installer | lolcat
+    echo "====================================" | lolcat
+}
+
+grant_mysql_privileges() {
+    log "Granting MySQL privileges for Main_user on nodejs_login database..."
+    sudo mysql -u root <<MYSQL_SCRIPT
+    GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';
+    FLUSH PRIVILEGES;
+MYSQL_SCRIPT
+    if [ $? -ne 0 ]; then
+        log "Error: Failed to grant MySQL privileges."
+        exit 1
+    fi
+    log "MySQL privileges granted successfully."
 }
 
 # Main script execution starts here
@@ -110,29 +142,22 @@ show_header
 log "Starting setup script..."
 
 install_packages figlet
-install_packages curl
+install_packages lolcat
+install_packages git
 install_packages jq
 install_packages expect
 
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 SEPIO_APP_DIR="$SCRIPT_DIR/Sepio-App"
 
-# Load environment variables from .env file
-if [ -f "$SEPIO_APP_DIR/backend/.env" ]; then
-    export $(egrep -v '^#' "$SEPIO_APP_DIR/backend/.env" | xargs)
-    log "Environment variables loaded from .env"
-else
-    log "Error: .env file not found"
-    exit 1
-fi
-
+log "Installing npm and dependencies..."
 install_npm
 install_frontend_dependencies "$SEPIO_APP_DIR/front-end"
 install_backend_dependencies "$SEPIO_APP_DIR/backend"
 install_nvm
 
 log "Checking for required Node.js versions from package.json files..."
-backend_node_version=$(jq -r '.engines.node // "16"' "$SEPIO_APP_DIR/backend/package.json")
+backend_node_version=$(get_required_node_version "$SEPIO_APP_DIR/backend/package.json")
 log "Required Node.js version for backend: $backend_node_version"
 if [ "$backend_node_version" == "null" ]; then
     log "Error: Required Node.js version for backend not specified in package.json."
@@ -140,7 +165,7 @@ if [ "$backend_node_version" == "null" ]; then
 fi
 install_node_version "$backend_node_version"
 
-frontend_node_version=$(jq -r '.engines.node // "16"' "$SEPIO_APP_DIR/front-end/package.json")
+frontend_node_version=$(get_required_node_version "$SEPIO_APP_DIR/front-end/package.json")
 log "Required Node.js version for frontend: $frontend_node_version"
 if [ "$frontend_node_version" == "null" ]; then
     log "Error: Required Node.js version for frontend not specified in package.json."
@@ -148,87 +173,27 @@ if [ "$frontend_node_version" == "null" ]; then
 fi
 install_node_version "$frontend_node_version"
 
-setup_prisma_migration
+log "Installing latest eslint-webpack-plugin..."
+npm install eslint-webpack-plugin@latest --save-dev
 
-log "Creating systemd service for React build..."
-sudo bash -c "cat <<EOL > /etc/systemd/system/react-build.service
-[Unit]
-Description=React Build Service
-After=network.target
-
-[Service]
-Type=oneshot
-ExecStart=/bin/bash -c 'cd $SEPIO_APP_DIR/front-end && npm run build'
-User=$USER
-Environment=PATH=$PATH:/usr/local/bin
-Environment=NODE_ENV=production
-WorkingDirectory=$SEPIO_APP_DIR/front-end
-
-[Install]
-WantedBy=multi-user.target
-EOL"
+log "Generating Prisma Client..."
+npx prisma generate
 if [ $? -ne 0 ]; then
-    log "Error: Failed to create react-build.service."
+    log "Error: Failed to generate Prisma Client."
     exit 1
 fi
+log "Prisma Client generated successfully."
 
-log "Creating systemd service for server.js..."
-sudo bash -c "cat <<EOL > /etc/systemd/system/node-server.service
-[Unit]
-Description=Node.js Server
-After=network.target
+log "Granting MySQL privileges..."
+grant_mysql_privileges
 
-[Service]
-Type=simple
-ExecStart=/bin/bash -c 'cd $SEPIO_APP_DIR/backend && node server.js'
-User=$USER
-Environment=PATH=$PATH:/usr/local/bin
-Environment=NODE_ENV=production
-WorkingDirectory=$SEPIO_APP_DIR/backend
+log "Granting privilages for Updater and scheduling autoupdates..."
+schedule_updater
+cd "$SCRIPT_DIR" || { log "Error: Directory $SCRIPT_DIR not found."; exit 1; }
+chmod +x Sepio_Updater.sh
+sudo touch /var/log/sepio_updater.log
+sudo chown "$USER:$USER" /var/log/sepio_updater.log
 
-[Install]
-WantedBy=multi-user.target
-EOL"
-if [ $? -ne 0 ]; then
-    log "Error: Failed to create node-server.service."
-    exit 1
-fi
-
-log "Reloading systemd daemon to pick up the new service files..."
-sudo systemctl daemon-reload
-if [ $? -ne 0 ]; then
-    log "Error: Failed to reload systemd daemon."
-    exit 1
-fi
-
-log "Enabling react-build.service to start on boot..."
-sudo systemctl enable react-build.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to enable react-build.service."
-    exit 1
-fi
-
-log "Starting react-build.service... Please be patient, don't interrupt the process..."
-sudo systemctl start react-build.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to start react-build.service."
-    exit 1
-fi
-
-log "Enabling node-server.service to start on boot..."
-sudo systemctl enable node-server.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to enable node-server.service."
-    exit 1
-fi
-
-log "Starting node-server.service..."
-sudo systemctl start node-server.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to start node-server.service."
-    exit 1
-fi
-
-check_port_availability 3000
+# Additional setup steps for MySQL, Redis, etc., continue...
 
 log "Setup script executed successfully."

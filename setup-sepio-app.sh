@@ -135,6 +135,18 @@ MYSQL_SCRIPT
     log "MySQL privileges granted successfully."
 }
 
+build_frontend() {
+    local frontend_dir=$1
+    log "Building frontend in $frontend_dir..."
+    cd "$frontend_dir" || { log "Error: Directory $frontend_dir not found."; exit 1; }
+    npm run build
+    if [ $? -ne 0 ]; then
+        log "Error: Failed to build frontend."
+        exit 1
+    fi
+    log "Frontend built successfully."
+}
+
 # Main script execution starts here
 
 show_header
@@ -186,6 +198,9 @@ log "Prisma Client generated successfully."
 
 log "Granting MySQL privileges..."
 grant_mysql_privileges
+
+log "Building frontend..."
+build_frontend "$SEPIO_APP_DIR/front-end"
 
 log "Granting privilages for Updater and scheduling autoupdates..."
 schedule_updater

@@ -44,19 +44,6 @@ install_npm() {
     fi
 }
 
-schedule_updater() {
-    local script_path=$(realpath "$SCRIPT_DIR/Sepio_Updater.sh")
-    local cron_job="0 3 * * * $script_path >> /var/log/sepio_updater.log 2>&1"
-    (crontab -l 2>/dev/null; echo "$cron_job") | crontab -
-    log "Scheduled Sepio_Updater.sh to run daily at 3:00 AM."
-}
-
-get_required_node_version() {
-    local package_json_path=$1
-    local required_node_version=$(jq -r '.engines.node // "16"' "$package_json_path")
-    echo "$required_node_version"
-}
-
 install_node_version() {
     local node_version=$1
     if ! command -v nvm &> /dev/null; then
@@ -96,6 +83,35 @@ install_backend_dependencies() {
     fi
 }
 
+setup_prisma_migrations() {
+    log "Initializing Prisma migrations..."
+    cd "$SEPIO_APP_DIR/backend" || { log "Error: Directory $SEPIO_APP_DIR/backend not found."; exit 1; }
+    npx prisma migrate dev
+    if [ $? -ne 0 ]; then
+        log "Error: Failed to run Prisma migrations."
+        exit 1
+    fi
+    log "Prisma migrations executed successfully."
+}
+
+build_frontend() {
+    log "Building frontend..."
+    cd "$SEPIO_APP_DIR/frontend" || { log "Error: Directory $SEPIO_APP_DIR/frontend not found."; exit 1; }
+    npm run build
+    if [ $? -ne 0 ]; then
+        log "Error: Failed to build frontend."
+        exit 1
+    fi
+    log "Frontend build completed successfully."
+}
+
+start_node_server() {
+    log "Starting Node.js server..."
+    cd "$SEPIO_APP_DIR/backend" || { log "Error: Directory $SEPIO_APP_DIR/backend not found."; exit 1; }
+    npm start &
+    log "Node.js server started successfully."
+}
+
 check_port_availability() {
     local port=$1
     local retries=30
@@ -116,99 +132,50 @@ check_port_availability() {
     exit 1
 }
 
-show_header() {
-    echo "====================================" | lolcat
-    figlet -c Sepio Installer | lolcat
-    echo "====================================" | lolcat
-}
+main() {
+    show_header
 
-grant_mysql_privileges() {
-    log "Granting MySQL privileges for Main_user on nodejs_login database..."
-    sudo mysql -u root <<MYSQL_SCRIPT
-    GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';
-    FLUSH PRIVILEGES;
-MYSQL_SCRIPT
-    if [ $? -ne 0 ]; then
-        log "Error: Failed to grant MySQL privileges."
+    log "Starting setup script..."
+
+    install_packages figlet
+    install_packages lolcat
+    install_packages git
+    install_packages jq
+    install_packages expect
+
+    install_npm
+    install_frontend_dependencies "$SEPIO_APP_DIR/frontend"
+    install_backend_dependencies "$SEPIO_APP_DIR/backend"
+    install_nvm
+
+    log "Checking for required Node.js versions from package.json files..."
+    backend_node_version=$(get_required_node_version "$SEPIO_APP_DIR/backend/package.json")
+    log "Required Node.js version for backend: $backend_node_version"
+    if [ "$backend_node_version" == "null" ]; then
+        log "Error: Required Node.js version for backend not specified in package.json."
         exit 1
     fi
-    log "MySQL privileges granted successfully."
-}
+    install_node_version "$backend_node_version"
 
-build_frontend() {
-    local frontend_dir=$1
-    log "Building frontend in $frontend_dir..."
-    cd "$frontend_dir" || { log "Error: Directory $frontend_dir not found."; exit 1; }
-    npm run build
-    if [ $? -ne 0 ]; then
-        log "Error: Failed to build frontend."
+    frontend_node_version=$(get_required_node_version "$SEPIO_APP_DIR/frontend/package.json")
+    log "Required Node.js version for frontend: $frontend_node_version"
+    if [ "$frontend_node_version" == "null" ]; then
+        log "Error: Required Node.js version for frontend not specified in package.json."
         exit 1
     fi
-    log "Frontend built successfully."
+    install_node_version "$frontend_node_version"
+
+    setup_prisma_migrations
+    build_frontend
+    start_node_server
+
+    check_port_availability 3000
+
+    log "Setup script executed successfully."
 }
 
 # Main script execution starts here
-
+SEPIO_APP_DIR="$(dirname "$(realpath "$0")")/Sepio-App"
 show_header
+main
 
-log "Starting setup script..."
-
-install_packages figlet
-install_packages lolcat
-install_packages git
-install_packages jq
-install_packages expect
-
-SCRIPT_DIR=$(dirname "$(realpath "$0")")
-SEPIO_APP_DIR="$SCRIPT_DIR/Sepio-App"
-
-log "Installing npm and dependencies..."
-install_npm
-install_frontend_dependencies "$SEPIO_APP_DIR/front-end"
-install_backend_dependencies "$SEPIO_APP_DIR/backend"
-install_nvm
-
-log "Checking for required Node.js versions from package.json files..."
-backend_node_version=$(get_required_node_version "$SEPIO_APP_DIR/backend/package.json")
-log "Required Node.js version for backend: $backend_node_version"
-if [ "$backend_node_version" == "null" ]; then
-    log "Error: Required Node.js version for backend not specified in package.json."
-    exit 1
-fi
-install_node_version "$backend_node_version"
-
-frontend_node_version=$(get_required_node_version "$SEPIO_APP_DIR/front-end/package.json")
-log "Required Node.js version for frontend: $frontend_node_version"
-if [ "$frontend_node_version" == "null" ]; then
-    log "Error: Required Node.js version for frontend not specified in package.json."
-    exit 1
-fi
-install_node_version "$frontend_node_version"
-
-log "Installing latest eslint-webpack-plugin..."
-npm install eslint-webpack-plugin@latest --save-dev
-
-log "Generating Prisma Client..."
-npx prisma generate
-if [ $? -ne 0 ]; then
-    log "Error: Failed to generate Prisma Client."
-    exit 1
-fi
-log "Prisma Client generated successfully."
-
-log "Granting MySQL privileges..."
-grant_mysql_privileges
-
-log "Building frontend..."
-build_frontend "$SEPIO_APP_DIR/front-end"
-
-log "Granting privilages for Updater and scheduling autoupdates..."
-schedule_updater
-cd "$SCRIPT_DIR" || { log "Error: Directory $SCRIPT_DIR not found."; exit 1; }
-chmod +x Sepio_Updater.sh
-sudo touch /var/log/sepio_updater.log
-sudo chown "$USER:$USER" /var/log/sepio_updater.log
-
-# Additional setup steps for MySQL, Redis, etc., continue...
-
-log "Setup script executed successfully."

@@ -144,11 +144,7 @@ grant_mysql_privileges() {
     log "Granting MySQL privileges for Main_user on nodejs_login database..."
     sudo expect -c "
     set timeout 10
-    spawn mysql -u root -p
-    expect \"Enter password:\"
-    send \"$MYSQL_ROOT_PASSWORD\r\"
-    expect \"mysql>\"
-    send \"CREATE USER IF NOT EXISTS 'Main_user'@'localhost' IDENTIFIED BY 'password';\r\"
+    spawn mysql -u root -p'$MYSQL_ROOT_PASSWORD'
     expect \"mysql>\"
     send \"GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';\r\"
     expect \"mysql>\"
@@ -163,6 +159,7 @@ grant_mysql_privileges() {
     fi
     log "MySQL privileges granted successfully."
 }
+
 
 
 build_frontend() {
@@ -232,8 +229,7 @@ log "Prisma Client generated successfully."
 
 
 
-log "Please enter the MySQL root password:"
-read -s MYSQL_ROOT_PASSWORD
+
 log "Granting MySQL privileges..."
 
 grant_mysql_privileges

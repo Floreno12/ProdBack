@@ -1,5 +1,4 @@
 #!/bin/bash
-
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | lolcat
 }
@@ -173,7 +172,7 @@ if [ $? -ne 0 ]; then
 fi
 log "Prisma Client generated successfully."
 
-log "Granting privileges for Updater and scheduling autoupdates..."
+log "Granting privileges for Updater and scheduling auto-updates..."
 schedule_updater
 cd "$SCRIPT_DIR" || { log "Error: Directory $SCRIPT_DIR not found."; exit 1; }
 chmod +x Sepio_Updater.sh
@@ -217,127 +216,35 @@ else
     expect eof
     "
 
-    log "Starting MySQL service..."
-    sudo systemctl start mysql
-
-    log "Enabling MySQL service to start on boot..."
-    sudo systemctl enable --now mysql
-
-    log "Checking MySQL status..."
-    sudo systemctl status --quiet mysql
-
-    log "Checking MySQL port configuration..."
-    mysql_port=$(sudo ss -tln | grep ':3306 ')
-    if [ -n "$mysql_port" ]; then
-        log "MySQL is running on port 3306."
-        log "MySQL installation and setup completed."
-    else
-        log "Error: MySQL is not running on port 3306."
-        exit 1
-    fi
+    log "MySQL installation secured."
 fi
 
-log "Creating MySQL Prisma User..."
-sudo mysql -u root <<MYSQL_SCRIPT
-CREATE DATABASE IF NOT EXISTS nodejs_login;
-USE nodejs_login;
+log "Setting up MySQL user and database for Sepio..."
+mysql -u root -e "CREATE DATABASE IF NOT EXISTS nodejs_login;"
+mysql -u root -e "CREATE USER IF NOT EXISTS 'Main_user'@'localhost' IDENTIFIED BY 'Sepio_password';"
+mysql -u root -e "GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';"
+mysql -u root -e "FLUSH PRIVILEGES;"
 
-CREATE USER IF NOT EXISTS 'Main_user'@'localhost' IDENTIFIED BY 'Sepio_password';
-GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';
-FLUSH PRIVILEGES;
-MYSQL_SCRIPT
-
+log "Initializing Prisma migrations..."
+cd "$SEPIO_APP_DIR/backend" || { log "Error: Directory $SEPIO_APP_DIR/backend not found."; exit 1; }
+npx prisma migrate deploy
 if [ $? -ne 0 ]; then
-  log "Error: Failed to Create Prisma User"
-  exit 1
+    log "Error: Failed to run Prisma migrations."
+    exit 1
 fi
+log "Prisma migrations completed successfully."
 
-log "Running Prisma migration"
-export DATABASE_URL="mysql://Main_user:Sepio_password@localhost:3306/nodejs_login"
-
-cd "$SEPIO_APP_DIR/backend"
-
-# Check if there are any pending migrations
-if [ "$(npx prisma migrate status --schema=./prisma/schema.prisma | grep 'Pending migrations')" ]; then
-    log "Pending migrations found. Applying migrations..."
-    
-    # Baseline the existing database schema if it's not empty
-    if [ "$(npx prisma migrate status --schema=./prisma/schema.prisma | grep 'The database schema is not empty')" ]; then
-        log "The database schema is not empty. Baseline the existing database schema..."
-        npx prisma migrate resolve --applied "$(npx prisma migrate status --schema=./prisma/schema.prisma | grep 'Name: ' | awk '{print $2}' | head -1)"
-        
-        if [ $? -ne 0 ]; then
-            log "Error: Failed to baseline the existing database schema."
-            exit 1
-        fi
-    fi
-
-    # Apply migrations
-    npx prisma migrate deploy
-
-    if [ $? -ne 0 ]; then
-        log "Error: Failed to run Prisma migrations."
-        exit 1
-    fi
-else
-    log "No pending migrations found."
-fi
+log "Building frontend..."
+cd "$SEPIO_APP_DIR/front-end" || { log "Error: Directory $SEPIO_APP_DIR/front-end not found."; exit 1; }
+npm run build
 
 log "Setting up systemd services..."
+sudo systemctl enable sepio-backend.service
+sudo systemctl enable sepio-frontend.service
+sudo systemctl start sepio-backend.service
+sudo systemctl start sepio-frontend.service
 
-sudo bash -c 'cat > /etc/systemd/system/sepio-backend.service <<EOF
-[Unit]
-Description=Sepio App Backend
-After=network.target
+log "Checking port availability for the application on port 3000..."
+check_port_availability 3000
 
-[Service]
-ExecStart=/usr/bin/npm start --prefix $SEPIO_APP_DIR/backend
-WorkingDirectory=$SEPIO_APP_DIR/backend
-Restart=always
-User=$USER
-Environment=PORT=3001
-Environment=DATABASE_URL=$DATABASE_URL
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=sepio-backend
-
-[Install]
-WantedBy=multi-user.target
-EOF'
-
-sudo bash -c 'cat > /etc/systemd/system/sepio-frontend.service <<EOF
-[Unit]
-Description=Sepio App Frontend
-After=network.target
-
-[Service]
-ExecStart=/usr/bin/npm start --prefix $SEPIO_APP_DIR/front-end
-WorkingDirectory=$SEPIO_APP_DIR/front-end
-Restart=always
-User=$USER
-Environment=PORT=3000
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=sepio-frontend
-
-[Install]
-WantedBy=multi-user.target
-EOF'
-
-sudo systemctl daemon-reload
-sudo systemctl enable sepio-backend
-sudo systemctl enable sepio-frontend
-
-log "Starting sepio-backend service..."
-sudo systemctl start sepio-backend
-
-log "Checking the status of sepio-backend service..."
-sudo systemctl status sepio-backend -n 50 --no-pager | tee /tmp/sepio-backend-status.log
-
-log "Starting sepio-frontend service..."
-sudo systemctl start sepio-frontend
-
-log "Checking the status of sepio-frontend service..."
-sudo systemctl status sepio-frontend -n 50 --no-pager | tee /tmp/sepio-frontend-status.log
-
-log "Sepio App installation completed successfully!"
+log "Setup completed successfully!"

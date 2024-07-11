@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 log() {
@@ -122,64 +121,6 @@ show_header() {
     figlet -c Sepio Installer | lolcat
     echo "====================================" | lolcat
 }
-
-if systemctl is-active --quiet mysql; then
-    log "MySQL server is already installed."
-else
-log "Installing MySQL server..."
-sudo apt-get update && sudo apt-get install -y mysql-server
-if [ $? -ne 0 ]; then
-    log "Error: Failed to install MySQL server."
-    exit 1
-fi
-
-
-log "Securing MySQL installation..."
-sudo expect -c "
-spawn mysql_secure_installation
-expect "VALIDATE PASSWORD COMPONENT?" {
-    send -- "Y\r"
-    expect "There are three levels of password validation policy:"
-    send -- "1\r"  # Choose MEDIUM (or 2 for STRONG if needed)
-}
-
-expect "Remove anonymous users?" {
-    send -- "Y\r"
-}
-
-expect "Disallow root login remotely?" {
-    send -- "Y\r"
-}
-
-expect "Remove test database and access to it?" {
-    send -- "Y\r"
-}
-
-expect "Reload privilege tables now?" {
-    send -- "Y\r"
-}
-expect eof
-"
-
-log "Starting MySQL service..."
-sudo systemctl start mysql
-
-log "Enabling MySQL service to start on boot..."
-sudo systemctl enable --now mysql
-
-log "Checking MySQL status..."
-sudo systemctl status --quiet mysql
-
-log "Checking MySQL port configuration..."
-mysql_port=$(sudo ss -tln | grep ':3306 ')
-if [ -n "$mysql_port" ]; then
-    log "MySQL is running on port 3306."
-    log "MySQL installation and setup completed."
-else
-    log "Error: MySQL is not running on port 3306."
-    exit 1
-fi
-
 
 grant_mysql_privileges() {
     log "Granting MySQL privileges for Main_user on nodejs_login database..."

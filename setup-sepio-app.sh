@@ -179,6 +179,8 @@ else
     exit 1
 fi
 
+if
+
 grant_mysql_privileges() {
     log "Granting MySQL privileges for Main_user on nodejs_login database..."
     sudo mysql -u root <<MYSQL_SCRIPT

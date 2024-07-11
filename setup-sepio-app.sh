@@ -18,6 +18,22 @@ install_packages() {
     fi
 }
 
+install_mysql() {
+    if ! command -v mysql &> /dev/null; then
+        log "MySQL is not installed. Installing MySQL..."
+        sudo apt-get update && sudo apt-get install -y mysql-server
+        if [ $? -ne 0 ]; then
+            log "Error: Failed to install MySQL."
+            exit 1
+        fi
+        sudo systemctl start mysql
+        sudo systemctl enable mysql
+        log "MySQL installed and started successfully."
+    else
+        log "MySQL is already installed."
+    fi
+}
+
 install_nvm() {
     if ! command -v nvm &> /dev/null; then
         log "nvm (Node Version Manager) is not installed. Installing nvm..."
@@ -43,24 +59,6 @@ install_npm() {
         log "npm is already installed."
     fi
 }
-
-
-install_mysql() {
-    if ! command -v mysql &> /dev/null; then
-        log "MySQL is not installed. Installing MySQL..."
-        sudo apt-get update && sudo apt-get install -y mysql-server
-        if [ $? -ne 0 ]; then
-            log "Error: Failed to install MySQL."
-            exit 1
-        fi
-        sudo systemctl start mysql
-        sudo systemctl enable mysql
-        log "MySQL installed and started successfully."
-    else
-        log "MySQL is already installed."
-    fi
-}
-
 
 schedule_updater() {
     local script_path=$(realpath "$SCRIPT_DIR/Sepio_Updater.sh")
@@ -142,10 +140,19 @@ show_header() {
 
 grant_mysql_privileges() {
     log "Granting MySQL privileges for Main_user on nodejs_login database..."
-    sudo mysql -u root <<MYSQL_SCRIPT
-    GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';
-    FLUSH PRIVILEGES;
-MYSQL_SCRIPT
+    sudo expect -c "
+    set timeout 10
+    spawn mysql -u root -p
+    expect \"Enter password:\"
+    send \"$MYSQL_ROOT_PASSWORD\r\"
+    expect \"mysql>\"
+    send \"GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';\r\"
+    expect \"mysql>\"
+    send \"FLUSH PRIVILEGES;\r\"
+    expect \"mysql>\"
+    send \"exit\r\"
+    expect eof
+    "
     if [ $? -ne 0 ]; then
         log "Error: Failed to grant MySQL privileges."
         exit 1
@@ -179,7 +186,6 @@ install_packages expect
 
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 SEPIO_APP_DIR="$SCRIPT_DIR/Sepio-App"
-
 
 log "Installing MySQL if not already installed..."
 install_mysql
@@ -219,6 +225,8 @@ fi
 log "Prisma Client generated successfully."
 
 log "Granting MySQL privileges..."
+log "Please enter the MySQL root password:"
+read -s MYSQL_ROOT_PASSWORD
 grant_mysql_privileges
 
 log "Creating systemd service for React build..."
@@ -239,19 +247,20 @@ WorkingDirectory=$SEPIO_APP_DIR/front-end
 WantedBy=multi-user.target
 EOL"
 if [ $? -ne 0 ]; then
-    log "Error: Failed to create react-build.service."
+    log "Error: Failed to create systemd service for React build."
     exit 1
 fi
+log "Systemd service for React build created successfully."
 
-log "Creating systemd service for server.js..."
+log "Creating systemd service for Node.js server..."
 sudo bash -c "cat <<EOL > /etc/systemd/system/node-server.service
 [Unit]
-Description=Node.js Server
+Description=Node.js Server Service
 After=network.target
 
 [Service]
-Type=simple
-ExecStart=/bin/bash -c 'cd $SEPIO_APP_DIR/backend && node server.js'
+ExecStart=$NVM_DIR/versions/node/v$backend_node_version/bin/node $SEPIO_APP_DIR/backend/server.js
+Restart=on-failure
 User=$USER
 Environment=PATH=$PATH:/usr/local/bin
 Environment=NODE_ENV=production
@@ -261,57 +270,20 @@ WorkingDirectory=$SEPIO_APP_DIR/backend
 WantedBy=multi-user.target
 EOL"
 if [ $? -ne 0 ]; then
-    log "Error: Failed to create node-server.service."
+    log "Error: Failed to create systemd service for Node.js server."
     exit 1
 fi
+log "Systemd service for Node.js server created successfully."
 
-log "Reloading systemd daemon to pick up the new service files..."
+log "Starting Node.js server..."
 sudo systemctl daemon-reload
-if [ $? -ne 0 ]; then
-    log "Error: Failed to reload systemd daemon."
-    exit 1
-fi
+sudo systemctl start node-server
+sudo systemctl enable node-server
 
-log "Enabling react-build.service to start on boot..."
-sudo systemctl enable react-build.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to enable react-build.service."
-    exit 1
-fi
-
-log "Starting react-build.service... Please be patient, don't break up the process..."
-sudo systemctl start react-build.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to start react-build.service."
-    exit 1
-fi
-
-log "Enabling node-server.service to start on boot..."
-sudo systemctl enable node-server.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to enable node-server.service."
-    exit 1
-fi
-
-log "Starting node-server.service..."
-sudo systemctl start node-server.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to start node-server.service."
-    exit 1
-fi
-
-log "Systemd services setup completed successfully."
-
-
-
-log "Granting privilages for Updater and scheduling autoupdates..."
-schedule_updater
-cd "$SCRIPT_DIR" || { log "Error: Directory $SCRIPT_DIR not found."; exit 1; }
-chmod +x Sepio_Updater.sh
-sudo touch /var/log/sepio_updater.log
-sudo chown "$USER:$USER" /var/log/sepio_updater.log
-
-# Additional setup steps for MySQL, Redis, etc., continue...
-
+log "Checking port availability for the Node.js server..."
 check_port_availability 3000
-log "Setup script executed successfully."
+
+log "Scheduling Sepio_Updater.sh..."
+schedule_updater
+
+log "Setup script completed successfully."

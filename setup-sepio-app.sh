@@ -297,6 +297,9 @@ Restart=always
 User=$USER
 Environment=PORT=3001
 Environment=DATABASE_URL=$DATABASE_URL
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=sepio-backend
 
 [Install]
 WantedBy=multi-user.target
@@ -313,6 +316,9 @@ WorkingDirectory=$SEPIO_APP_DIR/front-end
 Restart=always
 User=$USER
 Environment=PORT=3000
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=sepio-frontend
 
 [Install]
 WantedBy=multi-user.target
@@ -324,10 +330,16 @@ sudo systemctl enable sepio-frontend
 
 log "Starting sepio-backend service..."
 sudo systemctl start sepio-backend
+
+log "Checking the status of sepio-backend service..."
+sudo systemctl status sepio-backend -n 50 --no-pager | tee /tmp/sepio-backend-status.log
 check_port_availability 3001
 
 log "Starting sepio-frontend service..."
 sudo systemctl start sepio-frontend
+
+log "Checking the status of sepio-frontend service..."
+sudo systemctl status sepio-frontend -n 50 --no-pager | tee /tmp/sepio-frontend-status.log
 check_port_availability 3000
 
 log "Sepio App installation completed successfully!"

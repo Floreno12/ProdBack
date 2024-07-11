@@ -1,4 +1,5 @@
 #!/bin/bash
+
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | lolcat
 }
@@ -29,7 +30,6 @@ install_nvm() {
     fi
 }
 
-
 install_npm() {
     if ! command -v npm &> /dev/null; then
         log "npm is not installed. Installing npm..."
@@ -44,50 +44,46 @@ install_npm() {
     fi
 }
 
-
-schedule_updater() {
-    local script_path=$(realpath "$SCRIPT_DIR/Sepio_Updater.sh")
-    local cron_job="0 3 * * * $script_path >> /var/log/sepio_updater.log 2>&1"
-    (crontab -l 2>/dev/null; echo "$cron_job") | crontab -
-    log "Scheduled Sepio_Updater.sh to run daily at 3:00 AM."
-}
-
-get_required_node_version() {
-    local package_json_path=$1
-    local required_node_version=$(jq -r '.engines.node // "16"' "$package_json_path")
-    echo "$required_node_version"
-}
-
-install_node_version() {
-    local node_version=$1
-    if ! command -v nvm &> /dev/null; then
-        log "nvm (Node Version Manager) is not installed. Installing nvm..."
-        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
-        export NVM_DIR="$HOME/.nvm"
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+install_prisma() {
+    if ! command -v prisma &> /dev/null; then
+        log "Prisma CLI is not installed. Installing Prisma CLI..."
+        npm install -g prisma
+        if [ $? -ne 0 ]; then
+            log "Error: Failed to install Prisma CLI."
+            exit 1
+        fi
+        log "Prisma CLI installed successfully."
+    else
+        log "Prisma CLI is already installed."
     fi
-    nvm install "$node_version"
+}
+
+setup_prisma() {
+    log "Initializing Prisma migrations..."
+    prisma migrate dev --name init --preview-feature
     if [ $? -ne 0 ]; then
-        log "Error: Failed to install Node.js version $node_version using nvm."
+        log "Error: Failed to run Prisma migrations."
         exit 1
     fi
-    nvm use "$node_version"
-    log "Using Node.js version $node_version."
+    log "Prisma migrations applied successfully."
 }
 
-install_frontend_dependencies() {
-    local frontend_dir=$1
-    log "Installing frontend dependencies in $frontend_dir..."
-    cd "$frontend_dir" || { log "Error: Directory $frontend_dir not found."; exit 1; }
-    npm install
+setup_database() {
+    local database_url="mysql://Main_user:Sepio_password@localhost:3306/nodejs_login"
+
+    log "Setting up database..."
+    export DATABASE_URL="$database_url"
+    prisma db push --schema=prisma/schema.prisma --preview-feature
     if [ $? -ne 0 ]; then
-        log "Error: Failed to install frontend dependencies."
+        log "Error: Failed to push Prisma schema to database."
         exit 1
     fi
+    log "Database setup completed successfully."
 }
 
-install_backend_dependencies() {
+install_dependencies() {
     local backend_dir=$1
+
     log "Installing backend dependencies in $backend_dir..."
     cd "$backend_dir" || { log "Error: Directory $backend_dir not found."; exit 1; }
     npm install
@@ -95,31 +91,56 @@ install_backend_dependencies() {
         log "Error: Failed to install backend dependencies."
         exit 1
     fi
-}
-check_port_availability() {
-    local port=$1
-    local retries=30
-    local wait=3
-
-    log "Checking if the application is available on port $port..."
-
-    for ((i=1; i<=retries; i++)); do
-        if sudo ss -tln | grep ":$port" > /dev/null; then
-            log "Application is available on port $port."
-            return 0
-        fi
-        log "Port $port is not available yet. Waiting for $wait seconds... (Attempt $i/$retries)"
-        sleep $wait
-    done
-
-    log "Error: Application is not available on port $port after $((retries * wait)) seconds."
-    exit 1
+    log "Backend dependencies installed successfully."
 }
 
-show_header() {
-    echo "====================================" | lolcat
-    figlet -c Sepio Installer | lolcat
-    echo "====================================" | lolcat
+setup_services() {
+    local backend_dir=$1
+
+    log "Creating systemd service for server.js..."
+    sudo bash -c "cat <<EOL > /etc/systemd/system/node-server.service
+[Unit]
+Description=Node.js Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -c 'cd $backend_dir && node server.js'
+User=$USER
+Environment=PATH=$PATH:/usr/local/bin
+Environment=NODE_ENV=production
+WorkingDirectory=$backend_dir
+
+[Install]
+WantedBy=multi-user.target
+EOL"
+    if [ $? -ne 0 ]; then
+        log "Error: Failed to create node-server.service."
+        exit 1
+    fi
+
+    log "Reloading systemd daemon to pick up the new service files..."
+    sudo systemctl daemon-reload
+    if [ $? -ne 0 ]; then
+        log "Error: Failed to reload systemd daemon."
+        exit 1
+    fi
+
+    log "Enabling node-server.service to start on boot..."
+    sudo systemctl enable node-server.service
+    if [ $? -ne 0 ]; then
+        log "Error: Failed to enable node-server.service."
+        exit 1
+    fi
+
+    log "Starting node-server.service..."
+    sudo systemctl start node-server.service
+    if [ $? -ne 0 ]; then
+        log "Error: Failed to start node-server.service."
+        exit 1
+    fi
+
+    log "Systemd services setup completed successfully."
 }
 
 # Main script execution starts here
@@ -136,17 +157,15 @@ install_packages expect
 
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 SEPIO_APP_DIR="$SCRIPT_DIR/Sepio-App"
-Pass='$2b$10$E2NXxxi4nXClVrYRIWjIWu5iBFDcOgBoJnKVe5Hndw2Pv/XcV1DyW'
 
-log "Installing npm and deps..."
+log "Installing npm and dependencies..."
 install_npm
-install_frontend_dependencies "$SEPIO_APP_DIR/front-end"
-install_backend_dependencies "$SEPIO_APP_DIR/backend"
+install_prisma
 
 install_nvm
 
 log "Checking for required Node.js versions from package.json files..."
-backend_node_version=$(get_required_node_version "$SEPIO_APP_DIR/backend/package.json")
+backend_node_version=$(jq -r '.engines.node // "16"' "$SEPIO_APP_DIR/backend/package.json")
 log "Required Node.js version for backend: $backend_node_version"
 if [ "$backend_node_version" == "null" ]; then
     log "Error: Required Node.js version for backend not specified in package.json."
@@ -154,225 +173,11 @@ if [ "$backend_node_version" == "null" ]; then
 fi
 install_node_version "$backend_node_version"
 
-frontend_node_version=$(get_required_node_version "$SEPIO_APP_DIR/front-end/package.json")
-log "Required Node.js version for frontend: $frontend_node_version"
-if [ "$frontend_node_version" == "null" ]; then
-    log "Error: Required Node.js version for frontend not specified in package.json."
-    exit 1
-fi
-install_node_version "$frontend_node_version"
+log "Installing backend dependencies and setting up Prisma..."
+install_dependencies "$SEPIO_APP_DIR/backend"
+setup_prisma
+setup_database
 
-log "Installing latest eslint-webpack-plugin..."
-npm install eslint-webpack-plugin@latest --save-dev
+setup_services "$SEPIO_APP_DIR/backend"
 
-log "Generating Prisma Client..."
-npx prisma generate
-if [ $? -ne 0 ]; then
-    log "Error: Failed to generate Prisma Client."
-    exit 1
-fi
-log "Prisma Client generated successfully."
-
-log "Granting privilages for Updater and scheduling autoupdates..."
-schedule_updater
-cd "$SCRIPT_DIR" || { log "Error: Directory $SCRIPT_DIR not found."; exit 1; }
-chmod +x Sepio_Updater.sh
-sudo touch /var/log/sepio_updater.log
-sudo chown "$USER:$USER" /var/log/sepio_updater.log
-
-
-if systemctl is-active --quiet mysql; then
-    log "MySQL server is already installed."
-else
-log "Installing MySQL server..."
-sudo apt-get update && sudo apt-get install -y mysql-server
-if [ $? -ne 0 ]; then
-    log "Error: Failed to install MySQL server."
-    exit 1
-fi
-
-
-log "Securing MySQL installation..."
-sudo expect -c "
-spawn mysql_secure_installation
-expect "VALIDATE PASSWORD COMPONENT?" {
-    send -- "Y\r"
-    expect "There are three levels of password validation policy:"
-    send -- "1\r"  # Choose MEDIUM (or 2 for STRONG if needed)
-}
-
-expect "Remove anonymous users?" {
-    send -- "Y\r"
-}
-
-expect "Disallow root login remotely?" {
-    send -- "Y\r"
-}
-
-expect "Remove test database and access to it?" {
-    send -- "Y\r"
-}
-
-expect "Reload privilege tables now?" {
-    send -- "Y\r"
-}
-expect eof
-"
-
-log "Starting MySQL service..."
-sudo systemctl start mysql
-
-log "Enabling MySQL service to start on boot..."
-sudo systemctl enable --now mysql
-
-log "Checking MySQL status..."
-sudo systemctl status --quiet mysql
-
-log "Checking MySQL port configuration..."
-mysql_port=$(sudo ss -tln | grep ':3306 ')
-if [ -n "$mysql_port" ]; then
-    log "MySQL is running on port 3306."
-    log "MySQL installation and setup completed."
-else
-    log "Error: MySQL is not running on port 3306."
-    exit 1
-fi
-fi
-
-log "Creating MySQL Prisma User..."
-sudo mysql -u root <<MYSQL_SCRIPT
-CREATE DATABASE IF NOT EXISTS nodejs_login;
-USE nodejs_login;
-
-CREATE USER IF NOT EXISTS 'Main_user'@'localhost' IDENTIFIED BY 'Sepio_password';
-GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';
-FLUSH PRIVILEGES;
-MYSQL_SCRIPT
-
-if [ $? -ne 0 ]; then
-  log "Error: Failed to Create Prisma User"
-  exit 1
-fi
-
-log "Running Prisma migration"
-export DATABASE_URL="mysql://Main_user:Sepio_password@localhost:3306/nodejs_login"
-npx prisma db push --schema=Sepio-App/backend/prisma/schema.prisma
-
-if [ $? -ne 0 ]; then
-  log "Error: Failed to run Prisma migration."
-  exit 1
-fi
-
-log "Prisma migration completed successfully."
-log "MySQL Prisma User created successfully."
-
-log "Installing Redis server..."
-sudo apt-get update && sudo apt-get install -y redis-server
-if [ $? -ne 0 ]; then
-    log "Error: Failed to install Redis server."
-    exit 1
-fi
-
-log "Starting Redis service..."
-sudo systemctl start redis-server
-
-log "Enabling Redis service to start on boot..."
-sudo systemctl enable redis-server
-
-log "Checking Redis status..."
-sudo systemctl is-active redis-server
-
-log "Checking Redis port configuration..."
-redis_port=$(sudo ss -tln | grep ':6379 ')
-if [ -n "$redis_port" ]; then
-    log "Redis is running on port 6379."
-    log "Redis installation and setup completed."
-else
-    log "Error: Redis is not running on port 6379."
-    exit 1
-fi
-
-log "Creating systemd service for React build..."
-sudo bash -c "cat <<EOL > /etc/systemd/system/react-build.service
-[Unit]
-Description=React Build Service
-After=network.target
-
-[Service]
-Type=oneshot
-ExecStart=/bin/bash -c 'cd $SEPIO_APP_DIR/front-end && npm run build'
-User=$USER
-Environment=PATH=$PATH:/usr/local/bin
-Environment=NODE_ENV=production
-WorkingDirectory=$SEPIO_APP_DIR/front-end
-
-[Install]
-WantedBy=multi-user.target
-EOL"
-if [ $? -ne 0 ]; then
-    log "Error: Failed to create react-build.service."
-    exit 1
-fi
-
-log "Creating systemd service for server.js..."
-sudo bash -c "cat <<EOL > /etc/systemd/system/node-server.service
-[Unit]
-Description=Node.js Server
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=/bin/bash -c 'cd $SEPIO_APP_DIR/backend && node server.js'
-User=$USER
-Environment=PATH=$PATH:/usr/local/bin
-Environment=NODE_ENV=production
-WorkingDirectory=$SEPIO_APP_DIR/backend
-
-[Install]
-WantedBy=multi-user.target
-EOL"
-if [ $? -ne 0 ]; then
-    log "Error: Failed to create node-server.service."
-    exit 1
-fi
-
-log "Reloading systemd daemon to pick up the new service files..."
-sudo systemctl daemon-reload
-if [ $? -ne 0 ]; then
-    log "Error: Failed to reload systemd daemon."
-    exit 1
-fi
-
-log "Enabling react-build.service to start on boot..."
-sudo systemctl enable react-build.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to enable react-build.service."
-    exit 1
-fi
-
-log "Starting react-build.service... Please be patient, don't break up the process..."
-sudo systemctl start react-build.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to start react-build.service."
-    exit 1
-fi
-
-log "Enabling node-server.service to start on boot..."
-sudo systemctl enable node-server.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to enable node-server.service."
-    exit 1
-fi
-
-log "Starting node-server.service..."
-sudo systemctl start node-server.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to start node-server.service."
-    exit 1
-fi
-
-log "Systemd services setup completed successfully."
-
-check_port_availability 3000
-
-log "Setup script executed successfully." 
+log "Setup script executed successfully."

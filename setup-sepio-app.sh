@@ -148,6 +148,8 @@ grant_mysql_privileges() {
     expect \"Enter password:\"
     send \"$MYSQL_ROOT_PASSWORD\r\"
     expect \"mysql>\"
+    send \"CREATE USER IF NOT EXISTS 'Main_user'@'localhost' IDENTIFIED BY 'password';\r\"
+    expect \"mysql>\"
     send \"GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';\r\"
     expect \"mysql>\"
     send \"FLUSH PRIVILEGES;\r\"

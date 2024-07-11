@@ -122,18 +122,16 @@ show_header() {
     echo "====================================" | lolcat
 }
 
-grant_mysql_privileges() {
-    log "Granting MySQL privileges for Main_user on nodejs_login database..."
-    sudo mysql -u root <<MYSQL_SCRIPT
-    GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';
-    FLUSH PRIVILEGES;
-MYSQL_SCRIPT
-    if [ $? -ne 0 ]; then
-        log "Error: Failed to grant MySQL privileges."
-        exit 1
-    fi
-    log "MySQL privileges granted successfully."
-}
+
+
+
+
+
+
+
+
+
+
 
 build_frontend() {
     local frontend_dir=$1
@@ -288,6 +286,161 @@ cd "$SCRIPT_DIR" || { log "Error: Directory $SCRIPT_DIR not found."; exit 1; }
 chmod +x Sepio_Updater.sh
 sudo touch /var/log/sepio_updater.log
 sudo chown "$USER:$USER" /var/log/sepio_updater.log
+
+
+
+
+
+if systemctl is-active --quiet mysql; then
+    log "MySQL server is already installed."
+else
+log "Installing MySQL server..."
+sudo apt-get update && sudo apt-get install -y mysql-server
+if [ $? -ne 0 ]; then
+    log "Error: Failed to install MySQL server."
+    exit 1
+fi
+
+
+log "Securing MySQL installation..."
+sudo expect -c "
+spawn mysql_secure_installation
+expect "VALIDATE PASSWORD COMPONENT?" {
+    send -- "Y\r"
+    expect "There are three levels of password validation policy:"
+    send -- "1\r"  # Choose MEDIUM (or 2 for STRONG if needed)
+}
+
+expect "Remove anonymous users?" {
+    send -- "Y\r"
+}
+
+expect "Disallow root login remotely?" {
+    send -- "Y\r"
+}
+
+expect "Remove test database and access to it?" {
+    send -- "Y\r"
+}
+
+expect "Reload privilege tables now?" {
+    send -- "Y\r"
+}
+expect eof
+"
+
+log "Starting MySQL service..."
+sudo systemctl start mysql
+
+log "Enabling MySQL service to start on boot..."
+sudo systemctl enable --now mysql
+
+log "Checking MySQL status..."
+sudo systemctl status --quiet mysql
+
+log "Checking MySQL port configuration..."
+mysql_port=$(sudo ss -tln | grep ':3306 ')
+if [ -n "$mysql_port" ]; then
+    log "MySQL is running on port 3306."
+    log "MySQL installation and setup completed."
+else
+    log "Error: MySQL is not running on port 3306."
+    exit 1
+fi
+fi
+
+log "Creating MySQL entry user with password ********..."
+sudo mysql -u root <<MYSQL_SCRIPT
+CREATE DATABASE IF NOT EXISTS nodejs_login;
+USE nodejs_login;
+
+CREATE USER IF NOT EXISTS 'Main_user'@'localhost' IDENTIFIED BY 'Sepio_password';
+GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';
+FLUSH PRIVILEGES;
+
+CREATE TABLE IF NOT EXISTS user (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    otp_secret VARCHAR(255),
+    otp_verified BOOLEAN DEFAULT FALSE,
+    credentialsUpdated BOOLEAN DEFAULT FALSE,
+    privileges ENUM('UI_USER', 'SERVICE_ACCOUNT', 'ADMIN') NOT NULL,
+    serviceNowInstance VARCHAR(255),
+    serviceUsername VARCHAR(255),
+    servicePassword VARCHAR(255),
+    sepioEndpoint VARCHAR(255),
+    sepioUsername  VARCHAR(255),
+    sepioPassword VARCHAR(255)
+);
+
+CREATE TABLE IF NOT EXISTS ServiceNowCredentials (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  instance VARCHAR(255) NOT NULL,
+  username VARCHAR(255) NOT NULL,
+  password VARCHAR(255) NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sepio (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  instance VARCHAR(255) NOT NULL,
+  username VARCHAR(255) NOT NULL,
+  password VARCHAR(255) NOT NULL
+);
+
+INSERT INTO user (name, password, privileges) VALUES ('Admin', SHA2('admin', 256), 'ADMIN');
+MYSQL_SCRIPT
+
+if [ $? -ne 0 ]; then
+    log "Error: Failed to create MySQL user Main_user."
+    exit 1
+fi
+
+log "MySQL user Main_user created successfully."
+
+log "Installing Redis server..."
+sudo apt-get update && sudo apt-get install -y redis-server
+if [ $? -ne 0 ]; then
+    log "Error: Failed to install Redis server."
+    exit 1
+fi
+
+log "Starting Redis service..."
+sudo systemctl start redis-server
+
+log "Enabling Redis service to start on boot..."
+sudo systemctl enable redis-server
+
+log "Checking Redis status..."
+sudo systemctl is-active redis-server
+
+log "Checking Redis port configuration..."
+redis_port=$(sudo ss -tln | grep ':6379 ')
+if [ -n "$redis_port" ]; then
+    log "Redis is running on port 6379."
+    log "Redis installation and setup completed."
+else
+    log "Error: Redis is not running on port 6379."
+    exit 1
+fi
+
+
+
+
+
+
+
+grant_mysql_privileges() {
+    log "Granting MySQL privileges for Main_user on nodejs_login database..."
+    sudo mysql -u root <<MYSQL_SCRIPT
+    GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';
+    FLUSH PRIVILEGES;
+MYSQL_SCRIPT
+    if [ $? -ne 0 ]; then
+        log "Error: Failed to grant MySQL privileges."
+        exit 1
+    fi
+    log "MySQL privileges granted successfully."
+}
 
 # Additional setup steps for MySQL, Redis, etc., continue...
 

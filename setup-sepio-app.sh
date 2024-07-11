@@ -122,17 +122,18 @@ show_header() {
     echo "====================================" | lolcat
 }
 
-grant_mysql_privileges() {
-    log "Granting MySQL privileges for Main_user on nodejs_login database..."
+create_mysql_user() {
+    log "Creating MySQL user Main_user with privileges..."
     sudo mysql -u root <<MYSQL_SCRIPT
+    CREATE USER 'Main_user'@'localhost' IDENTIFIED BY 'your_password';
     GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';
     FLUSH PRIVILEGES;
 MYSQL_SCRIPT
     if [ $? -ne 0 ]; then
-        log "Error: Failed to grant MySQL privileges."
+        log "Error: Failed to create MySQL user or grant privileges."
         exit 1
     fi
-    log "MySQL privileges granted successfully."
+    log "MySQL user Main_user created and privileges granted successfully."
 }
 
 # Main script execution starts here
@@ -184,8 +185,8 @@ if [ $? -ne 0 ]; then
 fi
 log "Prisma Client generated successfully."
 
-log "Granting MySQL privileges..."
-grant_mysql_privileges
+log "Creating MySQL user and granting privileges..."
+create_mysql_user
 
 log "Granting privilages for Updater and scheduling autoupdates..."
 schedule_updater

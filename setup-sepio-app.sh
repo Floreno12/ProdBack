@@ -172,8 +172,6 @@ sudo systemctl start mysql
 log "Enabling MySQL service to start on boot..."
 sudo systemctl enable --now mysql
 
-log "Checking MySQL status..."
-sudo systemctl status --quiet mysql
 
 log "Checking MySQL port configuration..."
 mysql_port=$(sudo ss -tln | grep ':3306 ')
@@ -224,7 +222,7 @@ CREATE TABLE IF NOT EXISTS sepio (
   password VARCHAR(255) NOT NULL
 );
 
-INSERT INTO user (name, password, privileges) VALUES ('Admin', SHA2('admin', 256), 'ADMIN');
+
 MYSQL_SCRIPT
 
 if [ $? -ne 0 ]; then

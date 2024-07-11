@@ -122,7 +122,23 @@ show_header() {
     echo "====================================" | lolcat
 }
 
+
+check_mysql_running() {
+    log "Checking if MySQL service is running..."
+    if ! sudo systemctl is-active --quiet mysql; then
+        log "MySQL service is not running. Starting MySQL service..."
+        sudo systemctl start mysql
+        if [ $? -ne 0 ]; then
+            log "Error: Failed to start MySQL service."
+            exit 1
+        fi
+    else
+        log "MySQL service is already running."
+    fi
+}
+
 grant_mysql_privileges() {
+    check_mysql_running
     log "Granting MySQL privileges for Main_user on nodejs_login database..."
     sudo mysql -u root <<MYSQL_SCRIPT
     GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';

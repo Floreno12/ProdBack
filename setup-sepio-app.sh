@@ -135,13 +135,17 @@ install_packages expect
 
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 SEPIO_APP_DIR="$SCRIPT_DIR/Sepio-App"
-Pass='$2b$10$E2NXxxi4nXClVrYRIWjIWu5iBFDcOgBoJnKVe5Hndw2Pv/XcV1DyW'
 
-log "Installing npm and deps..."
+log "Installing npm..."
 install_npm
+
+log "Installing frontend dependencies..."
 install_frontend_dependencies "$SEPIO_APP_DIR/front-end"
+
+log "Installing backend dependencies..."
 install_backend_dependencies "$SEPIO_APP_DIR/backend"
 
+log "Installing nvm (Node Version Manager)..."
 install_nvm
 
 log "Checking for required Node.js versions from package.json files..."
@@ -161,10 +165,8 @@ if [ "$frontend_node_version" == "null" ]; then
 fi
 install_node_version "$frontend_node_version"
 
-log "Installing latest eslint-webpack-plugin..."
-npm install eslint-webpack-plugin@latest --save-dev
-
 log "Generating Prisma Client..."
+cd "$SEPIO_APP_DIR/backend" || { log "Error: Directory $SEPIO_APP_DIR/backend not found."; exit 1; }
 npx prisma generate
 if [ $? -ne 0 ]; then
     log "Error: Failed to generate Prisma Client."
@@ -174,77 +176,8 @@ log "Prisma Client generated successfully."
 
 log "Granting privileges for Updater and scheduling auto-updates..."
 schedule_updater
-cd "$SCRIPT_DIR" || { log "Error: Directory $SCRIPT_DIR not found."; exit 1; }
-chmod +x Sepio_Updater.sh
-sudo touch /var/log/sepio_updater.log
-sudo chown "$USER:$USER" /var/log/sepio_updater.log
 
-if systemctl is-active --quiet mysql; then
-    log "MySQL server is already installed."
-else
-    log "Installing MySQL server..."
-    sudo apt-get update && sudo apt-get install -y mysql-server
-    if [ $? -ne 0 ]; then
-        log "Error: Failed to install MySQL server."
-        exit 1
-    fi
-
-    log "Securing MySQL installation..."
-    sudo expect -c "
-    spawn mysql_secure_installation
-    expect \"VALIDATE PASSWORD COMPONENT?\" {
-        send -- \"Y\r\"
-        expect \"There are three levels of password validation policy:\"
-        send -- \"1\r\"  # Choose MEDIUM (or 2 for STRONG if needed)
-    }
-
-    expect \"Remove anonymous users?\" {
-        send -- \"Y\r\"
-    }
-
-    expect \"Disallow root login remotely?\" {
-        send -- \"Y\r\"
-    }
-
-    expect \"Remove test database and access to it?\" {
-        send -- \"Y\r\"
-    }
-
-    expect \"Reload privilege tables now?\" {
-        send -- \"Y\r\"
-    }
-    expect eof
-    "
-
-    log "MySQL installation secured."
-fi
-
-log "Setting up MySQL user and database for Sepio..."
-mysql -u root -e "CREATE DATABASE IF NOT EXISTS nodejs_login;"
-mysql -u root -e "CREATE USER IF NOT EXISTS 'Main_user'@'localhost' IDENTIFIED BY 'Sepio_password';"
-mysql -u root -e "GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';"
-mysql -u root -e "FLUSH PRIVILEGES;"
-
-log "Initializing Prisma migrations..."
-cd "$SEPIO_APP_DIR/backend" || { log "Error: Directory $SEPIO_APP_DIR/backend not found."; exit 1; }
-npx prisma migrate deploy
-if [ $? -ne 0 ]; then
-    log "Error: Failed to run Prisma migrations."
-    exit 1
-fi
-log "Prisma migrations completed successfully."
-
-log "Building frontend..."
-cd "$SEPIO_APP_DIR/front-end" || { log "Error: Directory $SEPIO_APP_DIR/front-end not found."; exit 1; }
-npm run build
-
-log "Setting up systemd services..."
-sudo systemctl enable sepio-backend.service
-sudo systemctl enable sepio-frontend.service
-sudo systemctl start sepio-backend.service
-sudo systemctl start sepio-frontend.service
-
-log "Checking port availability for the application on port 3000..."
+log "Checking port availability for backend..."
 check_port_availability 3000
 
-log "Setup completed successfully!"
+log "Setup script completed successfully."

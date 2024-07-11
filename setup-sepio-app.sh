@@ -333,13 +333,11 @@ sudo systemctl start sepio-backend
 
 log "Checking the status of sepio-backend service..."
 sudo systemctl status sepio-backend -n 50 --no-pager | tee /tmp/sepio-backend-status.log
-check_port_availability 3001
 
 log "Starting sepio-frontend service..."
 sudo systemctl start sepio-frontend
 
 log "Checking the status of sepio-frontend service..."
 sudo systemctl status sepio-frontend -n 50 --no-pager | tee /tmp/sepio-frontend-status.log
-check_port_availability 3000
 
 log "Sepio App installation completed successfully!"

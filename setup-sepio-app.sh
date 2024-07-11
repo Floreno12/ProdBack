@@ -1,4 +1,5 @@
 #!/bin/bash
+
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | lolcat
 }
@@ -182,58 +183,58 @@ sudo chown "$USER:$USER" /var/log/sepio_updater.log
 if systemctl is-active --quiet mysql; then
     log "MySQL server is already installed."
 else
-log "Installing MySQL server..."
-sudo apt-get update && sudo apt-get install -y mysql-server
-if [ $? -ne 0 ]; then
-    log "Error: Failed to install MySQL server."
-    exit 1
-fi
+    log "Installing MySQL server..."
+    sudo apt-get update && sudo apt-get install -y mysql-server
+    if [ $? -ne 0 ]; then
+        log "Error: Failed to install MySQL server."
+        exit 1
+    fi
 
-log "Securing MySQL installation..."
-sudo expect -c "
-spawn mysql_secure_installation
-expect "VALIDATE PASSWORD COMPONENT?" {
-    send -- "Y\r"
-    expect "There are three levels of password validation policy:"
-    send -- "1\r"  # Choose MEDIUM (or 2 for STRONG if needed)
-}
+    log "Securing MySQL installation..."
+    sudo expect -c "
+    spawn mysql_secure_installation
+    expect \"VALIDATE PASSWORD COMPONENT?\" {
+        send -- \"Y\r\"
+        expect \"There are three levels of password validation policy:\"
+        send -- \"1\r\"  # Choose MEDIUM (or 2 for STRONG if needed)
+    }
 
-expect "Remove anonymous users?" {
-    send -- "Y\r"
-}
+    expect \"Remove anonymous users?\" {
+        send -- \"Y\r\"
+    }
 
-expect "Disallow root login remotely?" {
-    send -- "Y\r"
-}
+    expect \"Disallow root login remotely?\" {
+        send -- \"Y\r\"
+    }
 
-expect "Remove test database and access to it?" {
-    send -- "Y\r"
-}
+    expect \"Remove test database and access to it?\" {
+        send -- \"Y\r\"
+    }
 
-expect "Reload privilege tables now?" {
-    send -- "Y\r"
-}
-expect eof
-"
+    expect \"Reload privilege tables now?\" {
+        send -- \"Y\r\"
+    }
+    expect eof
+    "
 
-log "Starting MySQL service..."
-sudo systemctl start mysql
+    log "Starting MySQL service..."
+    sudo systemctl start mysql
 
-log "Enabling MySQL service to start on boot..."
-sudo systemctl enable --now mysql
+    log "Enabling MySQL service to start on boot..."
+    sudo systemctl enable --now mysql
 
-log "Checking MySQL status..."
-sudo systemctl status --quiet mysql
+    log "Checking MySQL status..."
+    sudo systemctl status --quiet mysql
 
-log "Checking MySQL port configuration..."
-mysql_port=$(sudo ss -tln | grep ':3306 ')
-if [ -n "$mysql_port" ]; then
-    log "MySQL is running on port 3306."
-    log "MySQL installation and setup completed."
-else
-    log "Error: MySQL is not running on port 3306."
-    exit 1
-fi
+    log "Checking MySQL port configuration..."
+    mysql_port=$(sudo ss -tln | grep ':3306 ')
+    if [ -n "$mysql_port" ]; then
+        log "MySQL is running on port 3306."
+        log "MySQL installation and setup completed."
+    else
+        log "Error: MySQL is not running on port 3306."
+        exit 1
+    fi
 fi
 
 log "Creating MySQL Prisma User..."
@@ -255,14 +256,32 @@ log "Running Prisma migration"
 export DATABASE_URL="mysql://Main_user:Sepio_password@localhost:3306/nodejs_login"
 
 cd "$SEPIO_APP_DIR/backend"
-npx prisma migrate deploy
 
-if [ $? -ne 0 ]; then
-    log "Error: Failed to run Prisma migrations."
-    exit 1
+# Check if there are any pending migrations
+if [ "$(npx prisma migrate status --schema=./prisma/schema.prisma | grep 'Pending migrations')" ]; then
+    log "Pending migrations found. Applying migrations..."
+    
+    # Baseline the existing database schema if it's not empty
+    if [ "$(npx prisma migrate status --schema=./prisma/schema.prisma | grep 'The database schema is not empty')" ]; then
+        log "The database schema is not empty. Baseline the existing database schema..."
+        npx prisma migrate resolve --applied "$(npx prisma migrate status --schema=./prisma/schema.prisma | grep 'Name: ' | awk '{print $2}' | head -1)"
+        
+        if [ $? -ne 0 ]; then
+            log "Error: Failed to baseline the existing database schema."
+            exit 1
+        fi
+    fi
+
+    # Apply migrations
+    npx prisma migrate deploy
+
+    if [ $? -ne 0 ]; then
+        log "Error: Failed to run Prisma migrations."
+        exit 1
+    fi
+else
+    log "No pending migrations found."
 fi
-
-log "Starting Sepio App backend and frontend..."
 
 log "Setting up systemd services..."
 
@@ -311,6 +330,4 @@ log "Starting sepio-frontend service..."
 sudo systemctl start sepio-frontend
 check_port_availability 3000
 
-log "Setup completed successfully!"
-log "Front-end is available on http://localhost:3000"
-log "Backend API is available on http://localhost:3001"
+log "Sepio App installation completed successfully!"

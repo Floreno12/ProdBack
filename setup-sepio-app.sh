@@ -122,12 +122,18 @@ show_header() {
     echo "====================================" | lolcat
 }
 
-mysql -u root -p${MYSQL_ROOT_PASSWORD} -e "GRANT ALL PRIVILEGES ON database_name.* TO 'username'@'localhost' IDENTIFIED BY 'password';"
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to grant MySQL privileges."
-    exit 1
-fi
-
+grant_mysql_privileges() {
+    log "Granting MySQL privileges for Main_user on nodejs_login database..."
+    sudo mysql -u root <<MYSQL_SCRIPT
+    GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';
+    FLUSH PRIVILEGES;
+MYSQL_SCRIPT
+    if [ $? -ne 0 ]; then
+        log "Error: Failed to grant MySQL privileges."
+        exit 1
+    fi
+    log "MySQL privileges granted successfully."
+}
 
 build_frontend() {
     local frontend_dir=$1

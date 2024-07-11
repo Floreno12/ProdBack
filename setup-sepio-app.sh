@@ -18,111 +18,6 @@ install_packages() {
     fi
 }
 
-install_nvm() {
-    if ! command -v nvm &> /dev/null; then
-        log "nvm (Node Version Manager) is not installed. Installing nvm..."
-        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
-        export NVM_DIR="$HOME/.nvm"
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-        log "nvm installed successfully."
-    else
-        log "nvm is already installed."
-    fi
-}
-
-install_npm() {
-    if ! command -v npm &> /dev/null; then
-        log "npm is not installed. Installing npm..."
-        sudo apt-get update && sudo apt-get install -y npm
-        if [ $? -ne 0 ]; then
-            log "Error: Failed to install npm."
-            exit 1
-        fi
-        log "npm installed successfully."
-    else
-        log "npm is already installed."
-    fi
-}
-
-schedule_updater() {
-    local script_path=$(realpath "$SCRIPT_DIR/Sepio_Updater.sh")
-    local cron_job="0 3 * * * $script_path >> /var/log/sepio_updater.log 2>&1"
-    (crontab -l 2>/dev/null; echo "$cron_job") | crontab -
-    log "Scheduled Sepio_Updater.sh to run daily at 3:00 AM."
-}
-
-get_required_node_version() {
-    local package_json_path=$1
-    local required_node_version=$(jq -r '.engines.node // "16"' "$package_json_path")
-    echo "$required_node_version"
-}
-
-install_node_version() {
-    local node_version=$1
-    if ! command -v nvm &> /dev/null; then
-        log "nvm (Node Version Manager) is not installed. Installing nvm..."
-        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
-        export NVM_DIR="$HOME/.nvm"
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-    fi
-    nvm install "$node_version"
-    if [ $? -ne 0 ]; then
-        log "Error: Failed to install Node.js version $node_version using nvm."
-        exit 1
-    fi
-    nvm use "$node_version"
-    log "Using Node.js version $node_version."
-}
-
-install_frontend_dependencies() {
-    local frontend_dir=$1
-    log "Installing frontend dependencies in $frontend_dir..."
-    cd "$frontend_dir" || { log "Error: Directory $frontend_dir not found."; exit 1; }
-    npm install
-    if [ $? -ne 0 ]; then
-        log "Error: Failed to install frontend dependencies."
-        exit 1
-    fi
-}
-
-install_backend_dependencies() {
-    local backend_dir=$1
-    log "Installing backend dependencies in $backend_dir..."
-    cd "$backend_dir" || { log "Error: Directory $backend_dir not found."; exit 1; }
-    npm install
-    if [ $? -ne 0 ]; then
-        log "Error: Failed to install backend dependencies."
-        exit 1
-    fi
-}
-
-check_port_availability() {
-    local port=$1
-    local retries=30
-    local wait=3
-
-    log "Checking if the application is available on port $port..."
-
-    for ((i=1; i<=retries; i++)); do
-        if sudo ss -tln | grep ":$port" > /dev/null; then
-            log "Application is available on port $port."
-            return 0
-        fi
-        log "Port $port is not available yet. Waiting for $wait seconds... (Attempt $i/$retries)"
-        sleep $wait
-    done
-
-    log "Error: Application is not available on port $port after $((retries * wait)) seconds."
-    exit 1
-}
-
-show_header() {
-    echo "====================================" | lolcat
-    figlet -c Sepio Installer | lolcat
-    echo "====================================" | lolcat
-}
-
-
 check_mysql_running() {
     log "Checking if MySQL service is running..."
     if ! sudo systemctl is-active --quiet mysql; then
@@ -137,12 +32,31 @@ check_mysql_running() {
     fi
 }
 
+create_mysql_user() {
+    log "Checking if MySQL user 'Main_user' exists..."
+    USER_EXISTS=$(sudo mysql -u root -e "SELECT EXISTS(SELECT 1 FROM mysql.user WHERE user = 'Main_user' AND host = 'localhost');" | grep -o "1")
+    if [ "$USER_EXISTS" != "1" ]; then
+        log "MySQL user 'Main_user' does not exist. Creating user..."
+        sudo mysql -u root <<MYSQL_SCRIPT
+CREATE USER 'Main_user'@'localhost' IDENTIFIED BY 'your_password';
+MYSQL_SCRIPT
+        if [ $? -ne 0 ]; then
+            log "Error: Failed to create MySQL user 'Main_user'."
+            exit 1
+        fi
+        log "MySQL user 'Main_user' created successfully."
+    else
+        log "MySQL user 'Main_user' already exists."
+    fi
+}
+
 grant_mysql_privileges() {
     check_mysql_running
+    create_mysql_user
     log "Granting MySQL privileges for Main_user on nodejs_login database..."
     sudo mysql -u root <<MYSQL_SCRIPT
-    GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';
-    FLUSH PRIVILEGES;
+GRANT ALL PRIVILEGES ON nodejs_login.* TO 'Main_user'@'localhost';
+FLUSH PRIVILEGES;
 MYSQL_SCRIPT
     if [ $? -ne 0 ]; then
         log "Error: Failed to grant MySQL privileges."
@@ -151,16 +65,12 @@ MYSQL_SCRIPT
     log "MySQL privileges granted successfully."
 }
 
-build_frontend() {
-    local frontend_dir=$1
-    log "Building frontend in $frontend_dir..."
-    cd "$frontend_dir" || { log "Error: Directory $frontend_dir not found."; exit 1; }
-    npm run build
-    if [ $? -ne 0 ]; then
-        log "Error: Failed to build frontend."
-        exit 1
-    fi
-    log "Frontend built successfully."
+# Rest of your script...
+
+show_header() {
+    echo "====================================" | lolcat
+    figlet -c Sepio Installer | lolcat
+    echo "====================================" | lolcat
 }
 
 # Main script execution starts here
@@ -296,16 +206,12 @@ fi
 
 log "Systemd services setup completed successfully."
 
-
-
-log "Granting privilages for Updater and scheduling autoupdates..."
+log "Granting privileges for Updater and scheduling autoupdates..."
 schedule_updater
 cd "$SCRIPT_DIR" || { log "Error: Directory $SCRIPT_DIR not found."; exit 1; }
 chmod +x Sepio_Updater.sh
 sudo touch /var/log/sepio_updater.log
 sudo chown "$USER:$USER" /var/log/sepio_updater.log
-
-# Additional setup steps for MySQL, Redis, etc., continue...
 
 check_port_availability 3000
 log "Setup script executed successfully."

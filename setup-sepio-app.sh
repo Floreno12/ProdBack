@@ -29,7 +29,6 @@ install_nvm() {
     fi
 }
 
-
 install_npm() {
     if ! command -v npm &> /dev/null; then
         log "npm is not installed. Installing npm..."
@@ -43,7 +42,6 @@ install_npm() {
         log "npm is already installed."
     fi
 }
-
 
 schedule_updater() {
     local script_path=$(realpath "$SCRIPT_DIR/Sepio_Updater.sh")
@@ -96,6 +94,7 @@ install_backend_dependencies() {
         exit 1
     fi
 }
+
 check_port_availability() {
     local port=$1
     local retries=30
@@ -173,13 +172,12 @@ if [ $? -ne 0 ]; then
 fi
 log "Prisma Client generated successfully."
 
-log "Granting privilages for Updater and scheduling autoupdates..."
+log "Granting privileges for Updater and scheduling autoupdates..."
 schedule_updater
 cd "$SCRIPT_DIR" || { log "Error: Directory $SCRIPT_DIR not found."; exit 1; }
 chmod +x Sepio_Updater.sh
 sudo touch /var/log/sepio_updater.log
 sudo chown "$USER:$USER" /var/log/sepio_updater.log
-
 
 if systemctl is-active --quiet mysql; then
     log "MySQL server is already installed."
@@ -190,7 +188,6 @@ if [ $? -ne 0 ]; then
     log "Error: Failed to install MySQL server."
     exit 1
 fi
-
 
 log "Securing MySQL installation..."
 sudo expect -c "
@@ -256,123 +253,64 @@ fi
 
 log "Running Prisma migration"
 export DATABASE_URL="mysql://Main_user:Sepio_password@localhost:3306/nodejs_login"
-npx prisma db push --schema=Sepio-App/backend/prisma/schema.prisma
+
+cd "$SEPIO_APP_DIR/backend"
+npx prisma migrate deploy
 
 if [ $? -ne 0 ]; then
-  log "Error: Failed to run Prisma migration."
-  exit 1
-fi
-
-log "Prisma migration completed successfully."
-log "MySQL Prisma User created successfully."
-
-log "Installing Redis server..."
-sudo apt-get update && sudo apt-get install -y redis-server
-if [ $? -ne 0 ]; then
-    log "Error: Failed to install Redis server."
+    log "Error: Failed to run Prisma migrations."
     exit 1
 fi
 
-log "Starting Redis service..."
-sudo systemctl start redis-server
+log "Starting Sepio App backend and frontend..."
 
-log "Enabling Redis service to start on boot..."
-sudo systemctl enable redis-server
+log "Setting up systemd services..."
 
-log "Checking Redis status..."
-sudo systemctl is-active redis-server
-
-log "Checking Redis port configuration..."
-redis_port=$(sudo ss -tln | grep ':6379 ')
-if [ -n "$redis_port" ]; then
-    log "Redis is running on port 6379."
-    log "Redis installation and setup completed."
-else
-    log "Error: Redis is not running on port 6379."
-    exit 1
-fi
-
-log "Creating systemd service for React build..."
-sudo bash -c "cat <<EOL > /etc/systemd/system/react-build.service
+sudo bash -c 'cat > /etc/systemd/system/sepio-backend.service <<EOF
 [Unit]
-Description=React Build Service
+Description=Sepio App Backend
 After=network.target
 
 [Service]
-Type=oneshot
-ExecStart=/bin/bash -c 'cd $SEPIO_APP_DIR/front-end && npm run build'
-User=$USER
-Environment=PATH=$PATH:/usr/local/bin
-Environment=NODE_ENV=production
-WorkingDirectory=$SEPIO_APP_DIR/front-end
-
-[Install]
-WantedBy=multi-user.target
-EOL"
-if [ $? -ne 0 ]; then
-    log "Error: Failed to create react-build.service."
-    exit 1
-fi
-
-log "Creating systemd service for server.js..."
-sudo bash -c "cat <<EOL > /etc/systemd/system/node-server.service
-[Unit]
-Description=Node.js Server
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=/bin/bash -c 'cd $SEPIO_APP_DIR/backend && node server.js'
-User=$USER
-Environment=PATH=$PATH:/usr/local/bin
-Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm start --prefix $SEPIO_APP_DIR/backend
 WorkingDirectory=$SEPIO_APP_DIR/backend
+Restart=always
+User=$USER
+Environment=PORT=3001
+Environment=DATABASE_URL=$DATABASE_URL
 
 [Install]
 WantedBy=multi-user.target
-EOL"
-if [ $? -ne 0 ]; then
-    log "Error: Failed to create node-server.service."
-    exit 1
-fi
+EOF'
 
-log "Reloading systemd daemon to pick up the new service files..."
+sudo bash -c 'cat > /etc/systemd/system/sepio-frontend.service <<EOF
+[Unit]
+Description=Sepio App Frontend
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/npm start --prefix $SEPIO_APP_DIR/front-end
+WorkingDirectory=$SEPIO_APP_DIR/front-end
+Restart=always
+User=$USER
+Environment=PORT=3000
+
+[Install]
+WantedBy=multi-user.target
+EOF'
+
 sudo systemctl daemon-reload
-if [ $? -ne 0 ]; then
-    log "Error: Failed to reload systemd daemon."
-    exit 1
-fi
+sudo systemctl enable sepio-backend
+sudo systemctl enable sepio-frontend
 
-log "Enabling react-build.service to start on boot..."
-sudo systemctl enable react-build.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to enable react-build.service."
-    exit 1
-fi
+log "Starting sepio-backend service..."
+sudo systemctl start sepio-backend
+check_port_availability 3001
 
-log "Starting react-build.service... Please be patient, don't break up the process..."
-sudo systemctl start react-build.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to start react-build.service."
-    exit 1
-fi
-
-log "Enabling node-server.service to start on boot..."
-sudo systemctl enable node-server.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to enable node-server.service."
-    exit 1
-fi
-
-log "Starting node-server.service..."
-sudo systemctl start node-server.service
-if [ $? -ne 0 ]; then
-    log "Error: Failed to start node-server.service."
-    exit 1
-fi
-
-log "Systemd services setup completed successfully."
-
+log "Starting sepio-frontend service..."
+sudo systemctl start sepio-frontend
 check_port_availability 3000
 
-log "Setup script executed successfully." 
+log "Setup completed successfully!"
+log "Front-end is available on http://localhost:3000"
+log "Backend API is available on http://localhost:3001"

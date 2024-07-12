@@ -376,13 +376,7 @@ sudo bash -c "cat <<EOL > /etc/systemd/system/node-server.service
 Description=Node.js Server
 After=network.target
 
-[Service]
-Type=simple
-ExecStart=/bin/bash -c 'cd $SEPIO_APP_DIR/backend && node server.js'
-User=$USER
-Environment=PATH=$PATH:/usr/local/bin
-Environment=NODE_ENV=production
-WorkingDirectory=$SEPIO_APP_DIR/backend
+
 
 [Install]
 WantedBy=multi-user.target
@@ -439,6 +433,13 @@ sudo touch /var/log/sepio_updater.log
 sudo chown "$USER:$USER" /var/log/sepio_updater.log
 
 
+[Service]
+Type=simple
+ExecStart=/bin/bash -c 'cd $SEPIO_APP_DIR/backend && node server.js'
+User=$USER
+Environment=PATH=$PATH:/usr/local/bin
+Environment=NODE_ENV=production
+WorkingDirectory=$SEPIO_APP_DIR/backend
 
 
 

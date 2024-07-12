@@ -222,7 +222,7 @@ CREATE TABLE IF NOT EXISTS sepio (
   password VARCHAR(255) NOT NULL
 );
 
-
+INSERT INTO user (name, password, privileges) VALUES ('any', SHA2('admin', 256), 'ADMIN');
 MYSQL_SCRIPT
 
 if [ $? -ne 0 ]; then
@@ -370,28 +370,53 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-log "Creating systemd service for server.js..."
-sudo bash -c "cat <<EOL > /etc/systemd/system/node-server.service
+
+
+# Start the Node.js server
+log "Starting the Node.js server..."
+cd "$SCRIPT_DIR/backend" || { log "Error: Directory $SCRIPT_DIR/backend not found."; exit 1; }
+node server.js &
+if [ $? -ne 0 ]; then
+    log "Error: Failed to start the Node.js server."
+    exit 1
+fi
+log "Node.js server started successfully."
+
+# Optional: Systemd Service (if you prefer using a systemd service)
+log "Creating systemd service for running the Node.js server..."
+sudo bash -c "cat > /etc/systemd/system/node-server.service <<EOL
 [Unit]
 Description=Node.js Server
 After=network.target
 
-
+[Service]
+ExecStart=/usr/bin/node $SCRIPT_DIR/backend/server.js
+WorkingDirectory=$SCRIPT_DIR/backend
+Restart=always
+User=nobody
+Group=nogroup
+Environment=PATH=/usr/bin:/usr/local/bin
+Environment=NODE_ENV=production
 
 [Install]
 WantedBy=multi-user.target
 EOL"
+
+log "Reloading systemd services..."
+sudo systemctl daemon-reload
+
+log "Starting node-server.service..."
+sudo systemctl start node-server.service
 if [ $? -ne 0 ]; then
-    log "Error: Failed to create node-server.service."
+    log "Error: Failed to start node-server.service."
     exit 1
 fi
 
-log "Reloading systemd daemon to pick up the new service files..."
-sudo systemctl daemon-reload
-if [ $? -ne 0 ]; then
-    log "Error: Failed to reload systemd daemon."
-    exit 1
-fi
+log "Enabling node-server.service to start on boot..."
+sudo systemctl enable node-server.service
+
+log "Checking node-server.service status..."
+sudo systemctl status node-server.service
 
 log "Enabling react-build.service to start on boot..."
 sudo systemctl enable react-build.service
@@ -433,13 +458,6 @@ sudo touch /var/log/sepio_updater.log
 sudo chown "$USER:$USER" /var/log/sepio_updater.log
 
 
-[Service]
-Type=simple
-ExecStart=/bin/bash -c 'cd $SEPIO_APP_DIR/backend && node server.js'
-User=$USER
-Environment=PATH=$PATH:/usr/local/bin
-Environment=NODE_ENV=production
-WorkingDirectory=$SEPIO_APP_DIR/backend
 
 
 

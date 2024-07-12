@@ -44,9 +44,9 @@ function App() {
             <Route path='/querytool' element={<RootView icon_username={icon_username} />} />
             <Route path='/querytool/mac' element={<MAC icon_username={icon_username} />} />
             <Route path='/querytool/settings' element={<Settings icon_username={icon_username} />} />
-            {/* {userPrivileges === 'ADMIN' && ( */}
+            {userPrivileges === 'ADMIN' && (
               <Route path='/querytool/createuser' element={<CreateUser icon_username={icon_username} />} />           
-            
+            )}
             <Route path='/querytool/usersubmit' element={<Submit icon_username={icon_username} />} />
           </Routes>
         </div>

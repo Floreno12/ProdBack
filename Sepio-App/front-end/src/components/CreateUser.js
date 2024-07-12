@@ -4771,11 +4771,11 @@ export default function Layout({ icon_username }) {
 						<NavLink to='/querytool/settings' className='nav-link'>
 							<RiDashboardLine className='nav-icon' /> { sidebarOpen && 'Settings'}
 						</NavLink>
-						{/* {!isLoading && userPrivileges === 'ADMIN' && ( */}
+						{!isLoading && userPrivileges === 'ADMIN' && (
 							<NavLink to='/querytool/createuser' className='nav-link'>
 								<RiDashboardLine className='nav-icon' /> {sidebarOpen && 'Users'}
 							</NavLink>
-						
+						)}
 						
 					</CNavItem>
 				</CSidebarNav>
@@ -4825,7 +4825,7 @@ export default function Layout({ icon_username }) {
 			{/* <div style={{ display: 'flex', justifyContent: 'center', marginTop: '-20px', marginLeft: '150px'}}>
                 <Paginator first={first} rows={rows} totalRecords={filteredUsers.length} onPageChange={onPage} rowsPerPageOptions={[10]} />
             </div> */}
-			{/* {isLoading && (
+			{isLoading && (
 				<div style={{
 					display: 'flex',
 					justifyContent: 'center',
@@ -4840,7 +4840,7 @@ export default function Layout({ icon_username }) {
 				}}>
 
 				</div>
-			)} */}
+			)}
 			
 		</div>
 	);

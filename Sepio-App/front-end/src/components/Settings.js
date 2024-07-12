@@ -1699,11 +1699,11 @@ useEffect(() => {
 						<NavLink to='/querytool/settings' className='nav-link'>
 							<RiDashboardLine className='nav-icon' /> { sidebarOpen && 'Settings'}
 						</NavLink>
-						{/* {!isLoading && userPrivileges === 'ADMIN' && ( */}
+						{!isLoading && userPrivileges === 'ADMIN' && (
 							<NavLink to='/querytool/createuser' className='nav-link'>
 								<RiDashboardLine className='nav-icon' /> {sidebarOpen && 'Users'}
 							</NavLink>
-						
+						)}
 						
 					</CNavItem>
 				</CSidebarNav>
@@ -1783,7 +1783,7 @@ useEffect(() => {
 					</div>
 				</div>
 			</div>
-			{/* {isLoading && (
+			{isLoading && (
 				<div style={{
 					display: 'flex',
 					justifyContent: 'center',
@@ -1799,7 +1799,7 @@ useEffect(() => {
 
 
 				</div>
-			)} */}
+			)}
 		</div>
 	);
 }

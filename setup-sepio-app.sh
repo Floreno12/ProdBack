@@ -222,7 +222,7 @@ CREATE TABLE IF NOT EXISTS sepio (
   password VARCHAR(255) NOT NULL
 );
 
-INSERT INTO user (name, password, privileges) VALUES ('any', SHA2('admin', 256), 'ADMIN');
+
 MYSQL_SCRIPT
 
 if [ $? -ne 0 ]; then

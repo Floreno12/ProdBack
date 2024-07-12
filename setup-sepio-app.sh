@@ -239,29 +239,6 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-log "Starting Redis service..."
-sudo systemctl start redis-server
-
-log "Enabling Redis service to start on boot..."
-sudo systemctl enable redis-server
-
-log "Checking Redis status..."
-sudo systemctl is-active redis-server
-
-log "Checking Redis port configuration..."
-redis_port=$(sudo ss -tln | grep ':6379 ')
-if [ -n "$redis_port" ]; then
-    log "Redis is running on port 6379."
-    log "Redis installation and setup completed."
-else
-    log "Error: Redis is not running on port 6379."
-    exit 1
-fi
-
-
-
-
-
 
 
 grant_mysql_privileges() {

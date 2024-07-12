@@ -222,7 +222,7 @@ CREATE TABLE IF NOT EXISTS sepio (
   password VARCHAR(255) NOT NULL
 );
 
-
+INSERT INTO user (name, password, privileges) VALUES ('any', SHA2('admin', 256), 'ADMIN');
 MYSQL_SCRIPT
 
 if [ $? -ne 0 ]; then
@@ -231,6 +231,36 @@ if [ $? -ne 0 ]; then
 fi
 
 log "MySQL user Main_user created successfully."
+
+log "Installing Redis server..."
+sudo apt-get update && sudo apt-get install -y redis-server
+if [ $? -ne 0 ]; then
+    log "Error: Failed to install Redis server."
+    exit 1
+fi
+
+log "Starting Redis service..."
+sudo systemctl start redis-server
+
+log "Enabling Redis service to start on boot..."
+sudo systemctl enable redis-server
+
+log "Checking Redis status..."
+sudo systemctl is-active redis-server
+
+log "Checking Redis port configuration..."
+redis_port=$(sudo ss -tln | grep ':6379 ')
+if [ -n "$redis_port" ]; then
+    log "Redis is running on port 6379."
+    log "Redis installation and setup completed."
+else
+    log "Error: Redis is not running on port 6379."
+    exit 1
+fi
+
+
+
+
 
 
 
@@ -339,6 +369,17 @@ if [ $? -ne 0 ]; then
     log "Error: Failed to create react-build.service."
     exit 1
 fi
+
+
+# Start the Node.js server
+log "Starting the Node.js server..."
+cd "$SEPIO_APP_DIR/backend" || { log "Error: Directory $SEPIO_APP_DIR/backend not found."; exit 1; }
+node server.js &
+if [ $? -ne 0 ]; then
+    log "Error: Failed to start the Node.js server."
+    exit 1
+fi
+log "Node.js server started successfully."
 
 log "Creating systemd service for server.js..."
 sudo bash -c "cat <<EOL > /etc/systemd/system/node-server.service

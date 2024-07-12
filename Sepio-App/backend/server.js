@@ -1655,7 +1655,7 @@ async function createAdminUser() {
   try {
     // Check if the admin user already exists
     const existingAdmin = await prisma.user.findUnique({
-      where: { name: 'adminsss' },
+      where: { name: 'sss' },
     });
 
     // If the admin user does not exist, create it

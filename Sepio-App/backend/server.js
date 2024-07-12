@@ -1655,17 +1655,17 @@ async function createAdminUser() {
   try {
     // Check if the admin user already exists
     const existingAdmin = await prisma.user.findUnique({
-      where: { name: 'admin' },
+      where: { name: 'admins' },
     });
 
     // If the admin user does not exist, create it
     //dont forget past here !
-    if (existingAdmin) {
+    if (!existingAdmin) {
       const hashedPassword = await bcrypt.hash('admin', 10); // Hash the password with salt rounds of 10
 
       const newAdmin = await prisma.user.create({
         data: {
-          name: 'admin',
+          name: 'admins',
           password: hashedPassword,
           privileges: 'ADMIN',
           otp_secret: '',

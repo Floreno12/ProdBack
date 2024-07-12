@@ -370,17 +370,6 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-
-# Start the Node.js server
-log "Starting the Node.js server..."
-cd "$SEPIO_APP_DIR/backend" || { log "Error: Directory $SEPIO_APP_DIR/backend not found."; exit 1; }
-node server.js &
-if [ $? -ne 0 ]; then
-    log "Error: Failed to start the Node.js server."
-    exit 1
-fi
-log "Node.js server started successfully."
-
 log "Creating systemd service for server.js..."
 sudo bash -c "cat <<EOL > /etc/systemd/system/node-server.service
 [Unit]

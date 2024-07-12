@@ -232,13 +232,6 @@ fi
 
 log "MySQL user Main_user created successfully."
 
-log "Installing Redis server..."
-sudo apt-get update && sudo apt-get install -y redis-server
-if [ $? -ne 0 ]; then
-    log "Error: Failed to install Redis server."
-    exit 1
-fi
-
 
 
 grant_mysql_privileges() {

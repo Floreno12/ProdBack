@@ -1152,14 +1152,14 @@ export default function Layout({ icon_username }) {
 								<FormLabel>
 									<Typography level='body2'>Username</Typography>
 								</FormLabel>
-								<Input name='username' value={formData.username} onChange={handleInputChange} placeholder='Enter username' />
+								<Input name='username' value={formData.username} onChange={handleInputChange}/>
 							</FormControl>
 
 							<FormControl>
 								<FormLabel>
 									<Typography level='body2'>Password</Typography>
 								</FormLabel>
-								<Input type='password' name='password' value={formData.password} onChange={handleInputChange} placeholder='Enter password' />
+								<Input type='password' name='password' value={formData.password} onChange={handleInputChange} />
 								<Typography level="body-xs" sx={{ alignSelf: 'flex-end'}}>
 									
 								</Typography>
@@ -1169,12 +1169,12 @@ export default function Layout({ icon_username }) {
 								<FormLabel>
 									<Typography level='body2'>Confirm password</Typography>
 								</FormLabel>
-								<Input type='password' name='confirmPassword' value={formData.confirmPassword} onChange={handleInputChange} placeholder='Enter confirm password' />
+								<Input type='password' name='confirmPassword' value={formData.confirmPassword} onChange={handleInputChange} />
 							</FormControl>
 
 							<FormControl>
 								<FormLabel>
-									<Typography level='body2'>Privileges</Typography>
+									<Typography level='body2' style = {{marginTop: '40px'}}>Privileges</Typography>
 								</FormLabel>
 								<Select name='privileges' value={formData.privileges} onChange={handleSelectChange}>
 									<Option value='UI_USER'>UI User</Option>
@@ -1190,21 +1190,21 @@ export default function Layout({ icon_username }) {
 										<FormLabel>
 											<Typography level='body2'>ServiceNow Instance</Typography>
 										</FormLabel>
-										<Input name='serviceNowInstance' value={formData.serviceNowInstance} onChange={handleInputChange} placeholder='Enter ServiceNow instance' />
+										<Input name='serviceNowInstance' value={formData.serviceNowInstance} onChange={handleInputChange} />
 									</FormControl>
 
 									<FormControl>
 										<FormLabel>
 											<Typography level='body2'>ServiceNow Username</Typography>
 										</FormLabel>
-										<Input name='serviceUsername' value={formData.serviceUsername} onChange={handleInputChange} placeholder='Enter ServiceNow username' />
+										<Input name='serviceUsername' value={formData.serviceUsername} onChange={handleInputChange} />
 									</FormControl>
 
 									<FormControl>
 										<FormLabel>
 											<Typography level='body2'>ServiceNow Password</Typography>
 										</FormLabel>
-										<Input type='password' name='servicePassword' value={formData.servicePassword} onChange={handleInputChange} placeholder='Enter ServiceNow password' />
+										<Input type='password' name='servicePassword' value={formData.servicePassword} onChange={handleInputChange}/>
 									</FormControl>
 								</div>
 							)}
@@ -1217,21 +1217,21 @@ export default function Layout({ icon_username }) {
 										<FormLabel>
 											<Typography level='body2'>Sepio Endpoint</Typography>
 										</FormLabel>
-										<Input name='sepioEndpoint' value={formData.sepioEndpoint} onChange={handleInputChange} placeholder='Enter Sepio endpoint' />
+										<Input name='sepioEndpoint' value={formData.sepioEndpoint} onChange={handleInputChange} />
 									</FormControl>
 
 									<FormControl>
 										<FormLabel>
 											<Typography level='body2'>Sepio Username</Typography>
 										</FormLabel>
-										<Input name='sepioUsername' value={formData.sepioUsername} onChange={handleInputChange} placeholder='Enter Sepio username' />
+										<Input name='sepioUsername' value={formData.sepioUsername} onChange={handleInputChange}/>
 									</FormControl>
 
 									<FormControl>
 										<FormLabel>
 											<Typography level='body2'>Sepio Password</Typography>
 										</FormLabel>
-										<Input type='password' name='sepioPassword' value={formData.sepioPassword} onChange={handleInputChange} placeholder='Enter Sepio password' />
+										<Input type='password' name='sepioPassword' value={formData.sepioPassword} onChange={handleInputChange}/>
 									</FormControl>
 								</div>
 							)}

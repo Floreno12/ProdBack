@@ -1087,8 +1087,10 @@ export default function Layout({ icon_username }) {
 
 	return (
 		
-		<div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+		<div style={{ flexDirection: 'column', height: '100vh' }}>
+			
 			<Toast ref = {toast}/>
+			
 			<AppBar position="static" style={{ backgroundColor: '#ffffff', color: '#000000', marginBottom: '1px', zIndex: 1201 }}>
         <Toolbar>
           <IconButton edge="start" color="inherit" aria-label="menu" onClick={toggleSidebar}>

@@ -3150,17 +3150,17 @@ export default function Layout({ icon_username }) {
 
 
 
-  useEffect(() => {
-    if(isScrollDisabled){
-        document.body.style.overflow = 'hidden';
-    }else{
-        document.body.style.overflow = 'auto';
-    }
+//   useEffect(() => {
+//     if(isScrollDisabled){
+//         document.body.style.overflow = 'hidden';
+//     }else{
+//         document.body.style.overflow = 'auto';
+//     }
 
-    return () => {
-        document.body.style.overflow = 'auto';
-    }
-}, [isScrollDisabled]);
+//     return () => {
+//         document.body.style.overflow = 'auto';
+//     }
+// }, [isScrollDisabled]);
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -3316,18 +3316,12 @@ export default function Layout({ icon_username }) {
 				</CSidebarNav>
 				</Sidebar>
 		
-				<div style={{
-				display: 'flex',
-				justifyContent: 'center',
-				marginTop: '-600px',
-				top: '4px',
-				marginRight: '-150px'
-			}}>
+				<div style={{ flex: 1, padding: '20px', overflowY: 'auto', marginTop: '64px', marginLeft: '0px' }}>
 				<img src={SepioMainLogo} style={{
-					position: 'fixed',
+					
 					top: '180px',
 					left: '50%',
-					transform: 'translateX(-50%)',
+					// transform: 'translateX(-50%)',
 					zIndex: 1000,
 					height: logoHeight,
 					transition: 'height 0.3s ease'

@@ -4408,8 +4408,6 @@
 
 
 
-
-
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { AppBar, Toolbar, IconButton,  Avatar, Tooltip, Divider } from '@mui/material';
 import { CSidebar, CSidebarNav, CNavItem, CContainer, CForm } from '@coreui/react';
@@ -4518,19 +4516,19 @@ export default function Layout({ icon_username }) {
 
 	//
 
-	useEffect(() => {
-		const handleKeydown = (event) => {
-			if ((event.ctrlKey || event.metaKey) && (event.key === '=' || event.key === '-' || event.key === '0')) {
-				event.preventDefault();
-			}
-		};
+	// useEffect(() => {
+	// 	const handleKeydown = (event) => {
+	// 		if ((event.ctrlKey || event.metaKey) && (event.key === '=' || event.key === '-' || event.key === '0')) {
+	// 			event.preventDefault();
+	// 		}
+	// 	};
 
-		window.addEventListener('keydown', handleKeydown);
+	// 	window.addEventListener('keydown', handleKeydown);
 
-		return () => {
-			window.removeEventListener('keydown', handleKeydown);
-		};
-	}, []);
+	// 	return () => {
+	// 		window.removeEventListener('keydown', handleKeydown);
+	// 	};
+	// }, []);
 
 	useEffect(() => {
 		axios.get('/user/all')
@@ -4781,11 +4779,10 @@ export default function Layout({ icon_username }) {
 				</CSidebarNav>
 				</Sidebar>
                 
-				<div style={{ flex: 1, paddingLeft: '0px', marginTop: '-12px'}}>
-					<Menubar start={secondMenubarEnd} end={second} style={{ backgroundColor: '#183462', width: '100%', top: '0', zIndex: 1000, marginTop: '10px' }} />
+				<div style={{ flex: 1, paddingLeft: '0px', marginTop: '-12px', overflow: 'auto'}}>
+					<Menubar start={secondMenubarEnd} end={second} style={{ backgroundColor: '#183462', width: '100%', top: '0', zIndex: 1000, marginTop: '10px', overflow: 'auto' }} />
 					<div style={{ marginTop: '-20px' }}>
-						<DataTable
-						
+						<DataTable						
 							value={paginatedUsers}
 							responsiveLayout='scroll'
 							style={{ border: '1px solid #dee2e6', borderRadius: '10px', marginTop: '20px'}}
@@ -4845,19 +4842,3 @@ export default function Layout({ icon_username }) {
 		</div>
 	);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

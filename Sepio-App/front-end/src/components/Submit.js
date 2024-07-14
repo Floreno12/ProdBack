@@ -1145,7 +1145,7 @@ export default function Layout({ icon_username }) {
 			
 
 				<div style={{ flex: 1, overflowY: 'auto', marginTop: '0px' }}>
-					<Menubar start={secondMenubarEnd} style={{ backgroundColor: '#183462' }} />
+					<Menubar start={secondMenubarEnd} style={{ backgroundColor: '#183462', overflow: 'auto' }} />
 					<CContainer style={{ paddingTop: '5rem', width: '50%' }}>
 						<CForm onSubmit={handleSubmit}>
 							<FormControl>

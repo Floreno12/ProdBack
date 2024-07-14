@@ -3336,7 +3336,7 @@ export default function Layout({ icon_username }) {
 			
 
 			{/* Render loading spinner if isLoading is true */}
-			{/* {isLoading && (
+			{isLoading && (
 				<div style={{
 					display: 'flex',
 					justifyContent: 'center',
@@ -3351,7 +3351,7 @@ export default function Layout({ icon_username }) {
 				}}>
 
 				</div>
-			)} */}
+			)}
       </div>
 		</div>
 	);

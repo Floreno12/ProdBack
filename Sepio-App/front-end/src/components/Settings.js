@@ -1702,7 +1702,6 @@ import { useNavigate, NavLink, useLocation } from 'react-router-dom';
 import { Sidebar } from "react-pro-sidebar";
 import { Menu, MenuItem } from '@mui/material';
 import { RiDashboardLine } from 'react-icons/ri';
-import SepioLogo from './../image/Sepio_Logo.png';
 import { Toast } from 'primereact/toast';
 import { CSidebarNav, CNavItem } from '@coreui/react';
 import { InputText } from 'primereact/inputtext';
@@ -1890,7 +1889,7 @@ const testSepioConnection = async () => {
             <MenuIcon />
           </IconButton>
           <IconButton edge="start" color="inherit" aria-label="logo">
-            <img alt="logo" style={{ cursor: 'pointer', height: '40px' }} src={SepioLogo} onClick = {handelquerytool} />
+            <img alt="logo" style={{ cursor: 'pointer', height: '40px' }} onClick = {handelquerytool} />
           </IconButton>
           <div style={{ flexGrow: 1 }} />
           <div style={{ marginRight: '10px' }}>

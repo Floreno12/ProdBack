@@ -1708,6 +1708,7 @@ import { InputText } from 'primereact/inputtext';
 import { Button } from 'primereact/button';
 import { Message } from 'primereact/message';
 import axios from 'axios';
+import SepioLogo from './../image/Sepio_Logo.png';
 
 export default function Layout({ icon_username }) {
   const [username, setUsername] = useState('');
@@ -1889,7 +1890,7 @@ const testSepioConnection = async () => {
             <MenuIcon />
           </IconButton>
           <IconButton edge="start" color="inherit" aria-label="logo">
-            <img alt="logo" style={{ cursor: 'pointer', height: '40px' }} onClick = {handelquerytool} />
+            <img alt="logo" style={{ cursor: 'pointer', height: '40px' }} src={SepioLogo} onClick = {handelquerytool} />
           </IconButton>
           <div style={{ flexGrow: 1 }} />
           <div style={{ marginRight: '10px' }}>

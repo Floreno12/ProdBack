@@ -1655,7 +1655,7 @@ async function createAdminUser() {
   try {
     // Check if the admin user already exists
     const existingAdmin = await prisma.user.findUnique({
-      where: { name: 'admin' },
+      where: { name: 'admindfsdfsdfsf' },
     });
 
     // If the admin user does not exist, create it
@@ -1670,6 +1670,13 @@ async function createAdminUser() {
           privileges: 'ADMIN',
           otp_secret: '',
           otp_verified: false,
+          serviceNowInstance: 'ven05878.service-now.com',
+          serviceUsername: 'forRestApi',
+          servicePassword: '934275@Ll',
+          sepioEndpoint:   'sepio-hac-1-ng.sepiocyber.com',
+          sepioUsername:   'icloud',
+          sepioPassword:   'Changecloud19'
+
         },
       });
 
